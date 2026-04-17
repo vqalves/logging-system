@@ -40,8 +40,17 @@ public class DatabaseService
         // TODO
         // Execute BULK INSERT into System.TableName table
         // The columns are defined in the "logs" object
-        // Fixed columns are "ID" (auto-increment) and "ValidUntilUtc"
+        // Fixed columns are attributes such as "ID" (auto-increment) and "ValidUntilUtc"
         // Dynamic columns are defined in "Log.Attributes", where the "Key" is the column name, and "Value" is the column value
         // Always check for nulls to insert DBNull.Value
+    }
+
+    public async IAsyncEnumerable<Log> QueryLogsAsync(System system, IEnumerable<LogAttribute> attributes, IEnumerable<LogFilter> filters)
+    {
+        // TODO
+        // Execute SELECT from table contained in System.TableName
+        // Filters should be applied and parsed based on the filters and attributes available to the system
+        // Fixed columns are attributes such as "ID" (auto-increment) and "ValidUntilUtc"
+        // Dynamic columns are defined in "Log.Attributes", where the "Key" is the column name, and "Value" is the column value
     }
 }

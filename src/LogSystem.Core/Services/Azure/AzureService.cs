@@ -2,6 +2,8 @@
 
 public class AzureService
 {
+    private readonly AzureConfig AzureConfig;
+
     public async Task UploadFileAsync(string systemName, string fileName, TimeSpan fileDuration, string content)
     {
         // TODO: Implement upload file to Azure Blob Storage

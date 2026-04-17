@@ -10,6 +10,7 @@ public class ExtractionStyleJson : ExtractionStyle
     // TODO: Implement method to extract a value from a string based on an expression
     // For example, "$.person.name" from '{ "person": { "name": "João" }}' should return "João" 
     // Define the best type for "content" - it can be string, or JsonNode, JsonDocument or similar
+    // Will be called by class "LogExtractionService", define in sinergy with that
     public object Extract(object? content, string expression)
     {
         
