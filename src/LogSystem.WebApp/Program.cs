@@ -1,7 +1,18 @@
+using LogSystem.WebApp;
+using LogSystem.WebApp.BackgroundServices.Persistence;
+
+var configBuilder = new LogSystemConfigurationBuilder();
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
+
+builder.Services.AddSingleton(configBuilder.GetAzureConfig());
+builder.Services.AddSingleton(configBuilder.GetDatabaseConfig());
+builder.Services.AddSingleton(configBuilder.GetPersistenceBackgroundServiceConfig());
+
+builder.Services.AddHostedService<PersistenceBackgroundService>();
 
 var app = builder.Build();
 
