@@ -457,6 +457,53 @@ public class DatabaseService
         }
     }
 
+    public async Task DeleteLogCollectionAsync(LogCollection logCollection)
+    {
+        using var connection = new SqlConnection(DatabaseConfig.ConnectionString);
+        await connection.OpenAsync();
+
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            // Delete all associated attributes
+            var deleteAttributesSql = @"
+                DELETE FROM [dbo].[LogCollectionAttribute]
+                WHERE [LogCollectionID] = @LogCollectionID;";
+
+            using (var deleteAttributesCommand = new SqlCommand(deleteAttributesSql, connection, transaction))
+            {
+                deleteAttributesCommand.Parameters.AddWithValue("@LogCollectionID", logCollection.ID);
+                await deleteAttributesCommand.ExecuteNonQueryAsync();
+            }
+
+            // Drop the dynamic table
+            var dropTableSql = $@"
+                IF OBJECT_ID('[dbo].[{logCollection.TableName}]', 'U') IS NOT NULL
+                    DROP TABLE [dbo].[{logCollection.TableName}];";
+
+            using (var dropTableCommand = new SqlCommand(dropTableSql, connection, transaction))
+                await dropTableCommand.ExecuteNonQueryAsync();
+
+            // Delete the LogCollection record
+            var deleteCollectionSql = @"
+                DELETE FROM [dbo].[LogCollection]
+                WHERE [ID] = @ID;";
+
+            using (var deleteCollectionCommand = new SqlCommand(deleteCollectionSql, connection, transaction))
+            {
+                deleteCollectionCommand.Parameters.AddWithValue("@ID", logCollection.ID);
+                await deleteCollectionCommand.ExecuteNonQueryAsync();
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            transaction.Rollback();
+            throw;
+        }
+    }
+
     public async IAsyncEnumerable<LogAttribute> ListAttributesOfCollectionAsync(LogCollection logCollection)
     {
         var sql = @"

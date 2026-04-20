@@ -135,7 +135,7 @@ BEGIN
         ADD CONSTRAINT [FK_LogCollectionAttribute_LogCollection]
         FOREIGN KEY ([LogCollectionID])
         REFERENCES [dbo].[LogCollection] ([ID])
-        ON DELETE RESTRICT;
+        ON DELETE NO ACTION;
 
     PRINT 'Foreign key [FK_LogCollectionAttribute_LogCollection] created successfully.';
 END

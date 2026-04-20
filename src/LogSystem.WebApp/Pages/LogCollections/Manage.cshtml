@@ -1,0 +1,246 @@
+@page "{id?}"
+@model LogSystem.WebApp.Pages.LogCollections.ManageModel
+@{
+    ViewData["Title"] = "Manage Log Collection";
+}
+
+<h1 id="page-title">Manage Log Collection</h1>
+
+<div id="error-message" class="alert alert-danger" style="display: none;"></div>
+
+<form id="collection-form">
+    <input type="hidden" id="collection-id" value="0" />
+
+    <div class="mb-3">
+        <label for="name" class="form-label">Name</label>
+        <input type="text" class="form-control" id="name" name="name" required />
+        <div class="invalid-feedback" id="name-error"></div>
+    </div>
+
+    <div class="mb-3">
+        <label for="tableName" class="form-label">Table Name</label>
+        <input type="text" class="form-control" id="tableName" name="tableName" required />
+        <div class="invalid-feedback" id="tableName-error"></div>
+        <div class="form-text">Must contain only alphanumeric characters and underscores.</div>
+    </div>
+
+    <div class="mb-3">
+        <label for="logDurationHours" class="form-label">Log Duration (Hours)</label>
+        <input type="number" class="form-control" id="logDurationHours" name="logDurationHours" min="1" required />
+        <div class="invalid-feedback" id="logDurationHours-error"></div>
+        <div class="form-text">Number of hours to retain logs.</div>
+
+        <div class="mt-2">
+            <small class="text-muted d-block mb-1">Common retention periods (click to select):</small>
+            <table class="table table-sm table-bordered" style="width: auto; font-size: 0.875rem;">
+                <thead class="table-light">
+                    <tr>
+                        <th>Period</th>
+                        <th class="text-end">Hours</th>
+                    </tr>
+                </thead>
+                <tbody id="duration-presets">
+                    <tr class="duration-preset" data-hours="24" style="cursor: pointer;">
+                        <td>1 day</td>
+                        <td class="text-end">24</td>
+                    </tr>
+                    <tr class="duration-preset" data-hours="168" style="cursor: pointer;">
+                        <td>7 days</td>
+                        <td class="text-end">168</td>
+                    </tr>
+                    <tr class="duration-preset" data-hours="720" style="cursor: pointer;">
+                        <td>1 month (30 days)</td>
+                        <td class="text-end">720</td>
+                    </tr>
+                    <tr class="duration-preset" data-hours="1440" style="cursor: pointer;">
+                        <td>2 months (60 days)</td>
+                        <td class="text-end">1.440</td>
+                    </tr>
+                    <tr class="duration-preset" data-hours="4320" style="cursor: pointer;">
+                        <td>6 months (180 days)</td>
+                        <td class="text-end">4.320</td>
+                    </tr>
+                    <tr class="duration-preset" data-hours="8760" style="cursor: pointer;">
+                        <td>1 year (365 days)</td>
+                        <td class="text-end">8.760</td>
+                    </tr>
+                    <tr class="duration-preset" data-hours="17520" style="cursor: pointer;">
+                        <td>2 years (730 days)</td>
+                        <td class="text-end">17.520</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <button type="submit" class="btn btn-primary" id="save-button">
+            <span id="save-text">Save</span>
+            <span id="save-spinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="window.history.back()">Cancel</button>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        const collectionId = '@RouteData.Values["id"]';
+        const isEditMode = collectionId && collectionId !== '';
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (isEditMode) {
+                document.getElementById('page-title').textContent = 'Edit Log Collection';
+                loadCollection(collectionId);
+                // Make TableName read-only when editing
+                document.getElementById('tableName').setAttribute('readonly', 'readonly');
+                document.getElementById('tableName').classList.add('bg-light');
+            } else {
+                document.getElementById('page-title').textContent = 'Create Log Collection';
+            }
+
+            // Add click handlers for duration presets
+            document.querySelectorAll('.duration-preset').forEach(row => {
+                row.addEventListener('click', function() {
+                    const hours = this.getAttribute('data-hours');
+                    document.getElementById('logDurationHours').value = hours;
+
+                    // Highlight selected row temporarily
+                    document.querySelectorAll('.duration-preset').forEach(r => r.classList.remove('table-primary'));
+                    this.classList.add('table-primary');
+                });
+
+                // Add hover effect
+                row.addEventListener('mouseenter', function() {
+                    if (!this.classList.contains('table-primary')) {
+                        this.classList.add('table-active');
+                    }
+                });
+                row.addEventListener('mouseleave', function() {
+                    this.classList.remove('table-active');
+                });
+            });
+        });
+
+        async function loadCollection(id) {
+            try {
+                const response = await fetch(`/api/log-collections`);
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load collections: ${response.statusText}`);
+                }
+
+                const collections = await response.json();
+                const collection = collections.find(c => c.id == id);
+
+                if (!collection) {
+                    showError('Collection not found.');
+                    return;
+                }
+
+                // Populate form fields
+                document.getElementById('collection-id').value = collection.id;
+                document.getElementById('name').value = collection.name;
+                document.getElementById('tableName').value = collection.tableName;
+                document.getElementById('logDurationHours').value = collection.logDurationHours;
+
+            } catch (error) {
+                console.error('Error loading collection:', error);
+                showError('Failed to load collection: ' + error.message);
+            }
+        }
+
+        document.getElementById('collection-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // Clear previous errors
+            clearErrors();
+
+            // Get form data
+            const formData = {
+                id: parseInt(document.getElementById('collection-id').value),
+                name: document.getElementById('name').value.trim(),
+                tableName: document.getElementById('tableName').value.trim(),
+                logDurationHours: parseInt(document.getElementById('logDurationHours').value)
+            };
+
+            // Show loading state
+            const saveButton = document.getElementById('save-button');
+            const saveText = document.getElementById('save-text');
+            const saveSpinner = document.getElementById('save-spinner');
+            saveButton.disabled = true;
+            saveText.style.display = 'none';
+            saveSpinner.style.display = 'inline-block';
+
+            try {
+                const response = await fetch('/api/log-collections', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    // Success - redirect to list
+                    window.location.href = '/LogCollections';
+                } else if (response.status === 400) {
+                    // Validation errors
+                    const errorData = await response.json();
+                    displayValidationErrors(errorData);
+                } else if (response.status === 404) {
+                    showError('Collection not found.');
+                } else {
+                    const errorData = await response.json();
+                    showError(errorData.detail || 'Failed to save collection: ' + response.statusText);
+                }
+            } catch (error) {
+                console.error('Error saving collection:', error);
+                showError('Failed to save collection: ' + error.message);
+            } finally {
+                // Reset loading state
+                saveButton.disabled = false;
+                saveText.style.display = 'inline';
+                saveSpinner.style.display = 'none';
+            }
+        });
+
+        function displayValidationErrors(errorData) {
+            if (errorData.errors) {
+                // Standard validation problem details format
+                for (const [field, messages] of Object.entries(errorData.errors)) {
+                    const fieldName = field.charAt(0).toLowerCase() + field.slice(1);
+                    const errorElement = document.getElementById(`${fieldName}-error`);
+                    const inputElement = document.getElementById(fieldName);
+
+                    if (errorElement && inputElement) {
+                        errorElement.textContent = messages.join(', ');
+                        errorElement.style.display = 'block';
+                        inputElement.classList.add('is-invalid');
+                    }
+                }
+            } else {
+                showError('Validation failed. Please check your input.');
+            }
+        }
+
+        function clearErrors() {
+            document.getElementById('error-message').style.display = 'none';
+
+            const errorElements = document.querySelectorAll('.invalid-feedback');
+            errorElements.forEach(el => {
+                el.textContent = '';
+                el.style.display = 'none';
+            });
+
+            const inputElements = document.querySelectorAll('.form-control');
+            inputElements.forEach(el => el.classList.remove('is-invalid'));
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            window.scrollTo(0, 0);
+        }
+    </script>
+}

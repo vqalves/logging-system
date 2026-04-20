@@ -1,0 +1,142 @@
+@page
+@model LogSystem.WebApp.Pages.LogCollectionsModel
+@{
+    ViewData["Title"] = "Log Collections";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<div class="mb-3">
+    <a href="/LogCollections/Manage" class="btn btn-primary">Create New Collection</a>
+</div>
+
+<div id="error-message" class="alert alert-danger" style="display: none;"></div>
+<div id="success-message" class="alert alert-success" style="display: none;"></div>
+
+<table class="table table-striped" id="collections-table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Table Name</th>
+            <th>Log Duration (Hours)</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr id="loading-row">
+            <td colspan="5" class="text-center">Loading...</td>
+        </tr>
+    </tbody>
+</table>
+
+@section Scripts {
+    <script>
+        // Load collections on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCollections();
+        });
+
+        async function loadCollections() {
+            try {
+                const response = await fetch('/api/log-collections');
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load collections: ${response.statusText}`);
+                }
+
+                const collections = await response.json();
+                displayCollections(collections);
+            } catch (error) {
+                console.error('Error loading collections:', error);
+                showError('Failed to load collections: ' + error.message);
+                document.getElementById('loading-row').innerHTML = '<td colspan="5" class="text-center text-danger">Failed to load collections</td>';
+            }
+        }
+
+        function displayCollections(collections) {
+            const tbody = document.querySelector('#collections-table tbody');
+
+            if (collections.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">No collections found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+
+            collections.forEach(collection => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${collection.id}</td>
+                    <td>${escapeHtml(collection.name)}</td>
+                    <td>${escapeHtml(collection.tableName)}</td>
+                    <td>${collection.logDurationHours}</td>
+                    <td>
+                        <a href="/LogCollections/Manage/${collection.id}" class="btn btn-sm btn-primary">Edit</a>
+                        <button class="btn btn-sm btn-danger" onclick="deleteCollection(${collection.id}, '${escapeHtml(collection.name)}')">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        async function deleteCollection(id, name) {
+            if (!confirm(`Are you sure you want to delete the collection "${name}"? This will also drop the associated table and all data.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/log-collections/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    showSuccess(`Collection "${name}" deleted successfully.`);
+                    loadCollections(); // Reload the table
+                } else if (response.status === 404) {
+                    showError('Collection not found.');
+                } else {
+                    const error = await response.json();
+                    showError('Failed to delete collection: ' + (error.detail || response.statusText));
+                }
+            } catch (error) {
+                console.error('Error deleting collection:', error);
+                showError('Failed to delete collection: ' + error.message);
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+
+            // Hide success message
+            document.getElementById('success-message').style.display = 'none';
+
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success-message');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+
+            // Hide error message
+            document.getElementById('error-message').style.display = 'none';
+
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+}
