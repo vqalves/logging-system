@@ -19,16 +19,20 @@
 
     <div class="mb-3">
         <label for="clientId" class="form-label">Client ID</label>
-        <input type="text" class="form-control" id="clientId" name="clientId" />
+        <input type="text" class="form-control" id="clientId" name="clientId" placeholder="e.g., app-frontend, mobile_client, api.service" />
         <div class="invalid-feedback" id="clientId-error"></div>
-        <div class="form-text">Must contain only alphanumeric characters, hyphens, underscores, and dots.</div>
+        <div class="form-text">
+            <strong>Unique identifier for the application or service sending logs. Letters, numbers, hyphen, underscore and dot are allowed</strong>
+        </div>
     </div>
 
     <div class="mb-3">
         <label for="tableName" class="form-label">Table Name</label>
-        <input type="text" class="form-control" id="tableName" name="tableName" />
+        <input type="text" class="form-control" id="tableName" name="tableName" placeholder="e.g., app_frontend_logs, mobile_logs" />
         <div class="invalid-feedback" id="tableName-error"></div>
-        <div class="form-text">Must contain only alphanumeric characters and underscores.</div>
+        <div class="form-text">
+            <strong>Database table name where logs will be stored. Letters, numbers and underscore are allowed. Cannot be changed after creation.</strong>
+        </div>
     </div>
 
     <div class="mb-3">

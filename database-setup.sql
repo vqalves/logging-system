@@ -56,43 +56,11 @@ BEGIN
 END
 GO
 
--- Add ClientId column if it doesn't exist (for existing databases)
-IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LogCollection') AND name = 'ClientId')
-BEGIN
-    ALTER TABLE [dbo].[LogCollection]
-        ADD [ClientId] VARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NULL;
-
-    PRINT 'Column [ClientId] added to [LogCollection] table.';
-
-    -- Update existing rows with a default ClientId if needed
-    -- You may need to manually set appropriate ClientId values for existing records
-    PRINT 'WARNING: Existing records have NULL ClientId. Please update them with appropriate values.';
-END
-ELSE
-BEGIN
-    PRINT 'Column [ClientId] already exists in [LogCollection] table.';
-END
-GO
-
--- Make ClientId NOT NULL after ensuring all rows have values (for manual migration)
--- Uncomment the following block AFTER all existing records have been updated with ClientId values
-/*
-IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LogCollection') AND name = 'ClientId' AND is_nullable = 1)
-BEGIN
-    ALTER TABLE [dbo].[LogCollection]
-        ALTER COLUMN [ClientId] VARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL;
-
-    PRINT 'Column [ClientId] set to NOT NULL.';
-END
-GO
-*/
-
 -- Create unique constraint on ClientId to prevent duplicate client identifiers
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_LogCollection_ClientId' AND object_id = OBJECT_ID('dbo.LogCollection'))
 BEGIN
     CREATE UNIQUE NONCLUSTERED INDEX [UX_LogCollection_ClientId]
-        ON [dbo].[LogCollection] ([ClientId] ASC)
-        WHERE [ClientId] IS NOT NULL;
+        ON [dbo].[LogCollection] ([ClientId] ASC);
 
     PRINT 'Unique constraint [UX_LogCollection_ClientId] created successfully.';
 END

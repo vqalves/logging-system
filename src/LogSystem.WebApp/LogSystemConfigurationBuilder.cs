@@ -26,11 +26,23 @@ public class LogSystemConfigurationBuilder
     {
         var connectionString = GetConfigValue("AZURE_BLOB_STORAGE_CONNECTION_STRING") ?? throw new InvalidOperationException("AZURE_BLOB_STORAGE_CONNECTION_STRING not found in configuration");
         var containerName = GetConfigValue("AZURE_BLOB_STORAGE_CONTAINER_NAME") ?? "logs";
+        var subscriptionId = GetConfigValue("AZURE_SUBSCRIPTION_ID") ?? throw new InvalidOperationException("AZURE_SUBSCRIPTION_ID not found in configuration");
+        var resourceGroupName = GetConfigValue("AZURE_RESOURCE_GROUP_NAME") ?? throw new InvalidOperationException("AZURE_RESOURCE_GROUP_NAME not found in configuration");
+        var storageAccountName = GetConfigValue("AZURE_STORAGE_ACCOUNT_NAME") ?? throw new InvalidOperationException("AZURE_STORAGE_ACCOUNT_NAME not found in configuration");
+        var tenantId = GetConfigValue("AZURE_TENANT_ID") ?? throw new InvalidOperationException("AZURE_TENANT_ID not found in configuration");
+        var clientId = GetConfigValue("AZURE_CLIENT_ID") ?? throw new InvalidOperationException("AZURE_CLIENT_ID not found in configuration");
+        var clientSecret = GetConfigValue("AZURE_CLIENT_SECRET") ?? throw new InvalidOperationException("AZURE_CLIENT_SECRET not found in configuration");
 
         return new AzureConfig
         {
             ConnectionString = connectionString,
-            ContainerName = containerName
+            ContainerName = containerName,
+            SubscriptionId = subscriptionId,
+            ResourceGroupName = resourceGroupName,
+            StorageAccountName = storageAccountName,
+            TenantId = tenantId,
+            ClientId = clientId,
+            ClientSecret = clientSecret
         };
     }
 

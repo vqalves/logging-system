@@ -17,19 +17,13 @@ public static class CreateOrUpdateLogCollectionEndpoint
             [FromServices] DatabaseService databaseService,
             [FromServices] LogCollectionCache cache) =>
         {
-            var validationErrors = Validate(request);
+            var validationErrors = await ValidateAsync(request, databaseService);
 
             if (validationErrors.Count > 0)
                 return Results.ValidationProblem(validationErrors);
 
             try
             {
-                // TODO: Move logic of ValidateUniqueness to Validate method
-                // Check for uniqueness of ClientId and TableName
-                var uniquenessErrors = await ValidateUniqueness(request, databaseService);
-                if (uniquenessErrors.Count > 0)
-                    return Results.ValidationProblem(uniquenessErrors);
-
                 LogCollection logCollection;
 
                 if (request.ID == null || request.ID == 0)
@@ -72,57 +66,48 @@ public static class CreateOrUpdateLogCollectionEndpoint
         });
     }
 
-    private static Dictionary<string, string[]> Validate(Request request)
+    private static async Task<Dictionary<string, string[]>> ValidateAsync(Request request, DatabaseService databaseService)
     {
         var errors = new Dictionary<string, string[]>();
 
+        // Validate Name
         if (string.IsNullOrWhiteSpace(request.Name))
         {
             errors.Add("Name", new[] { "Name is required." });
         }
 
-        if (string.IsNullOrWhiteSpace(request.ClientId))
+        // Validate ClientId using static validation method
+        if (!LogCollection.TryValidateClientId(request.ClientId ?? "", out var clientIdError))
         {
-            errors.Add("ClientId", new[] { "ClientId is required." });
+            errors.Add("ClientId", new[] { clientIdError! });
         }
-        else if (!System.Text.RegularExpressions.Regex.IsMatch(request.ClientId, @"^[a-zA-Z0-9_.-]+$"))
+        else
         {
-            errors.Add("ClientId", new[] { "ClientId must contain only alphanumeric characters, hyphens, underscores, and dots." });
+            // Check if ClientId is already used by another record
+            var existingByClientId = await databaseService.GetLogCollectionByClientIdAsync(request.ClientId!);
+
+            if (existingByClientId != null && existingByClientId.ID != request.ID)
+                errors.Add("ClientId", new[] { "This ClientId is already in use by another LogCollection." });
         }
 
-        if (string.IsNullOrWhiteSpace(request.TableName))
+        // Validate TableName using static validation method
+        if (!LogCollection.TryValidateTableName(request.TableName ?? "", out var tableNameError))
         {
-            errors.Add("TableName", new[] { "TableName is required." });
+            errors.Add("TableName", new[] { tableNameError! });
         }
-        else if (!System.Text.RegularExpressions.Regex.IsMatch(request.TableName, @"^[a-zA-Z0-9_]+$"))
+        else
         {
-            errors.Add("TableName", new[] { "TableName must contain only alphanumeric characters and underscores." });
+            // Check if TableName is already used by another record
+            var existingByTableName = await databaseService.ListLogCollectionsAsync(tableNameEquals: request.TableName!).FirstOrDefaultAsync();
+            
+            if (existingByTableName != null && existingByTableName.ID != request.ID)
+                errors.Add("TableName", new[] { "This TableName is already in use by another LogCollection." });
         }
 
+        // Validate LogDurationHours
         if (!request.LogDurationHours.HasValue || request.LogDurationHours <= 0)
         {
             errors.Add("LogDurationHours", new[] { "LogDurationHours must be greater than 0." });
-        }
-
-        return errors;
-    }
-
-    private static async Task<Dictionary<string, string[]>> ValidateUniqueness(Request request, DatabaseService databaseService)
-    {
-        var errors = new Dictionary<string, string[]>();
-
-        // Check if ClientId is already used by another record
-        var existingByClientId = await databaseService.GetLogCollectionByClientIdAsync(request.ClientId!);
-        if (existingByClientId != null && existingByClientId.ID != request.ID)
-        {
-            errors.Add("ClientId", new[] { "This ClientId is already in use by another LogCollection." });
-        }
-
-        // Check if TableName is already used by another record
-        var existingByTableName = await databaseService.ListLogCollectionsAsync(tableNameEquals: request.TableName!).FirstOrDefaultAsync();
-        if (existingByTableName != null && existingByTableName.ID != request.ID)
-        {
-            errors.Add("TableName", new[] { "This TableName is already in use by another LogCollection." });
         }
 
         return errors;

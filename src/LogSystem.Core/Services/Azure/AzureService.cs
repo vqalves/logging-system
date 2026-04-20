@@ -1,4 +1,9 @@
 ﻿using Azure;
+using Azure.Core;
+using Azure.Identity;
+using Azure.ResourceManager;
+using Azure.ResourceManager.Storage;
+using Azure.ResourceManager.Storage.Models;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using System.IO.Compression;
@@ -75,8 +80,169 @@ public class AzureService
         }
     }
 
-    // TODO: Implement methods that can create, edit and delete lifecycle policy based on a collectionid.
-    // The lifecycle specifies that files inside the collection folder must be deleted after X amount of time after creation.
+    /// <summary>
+    /// Creates a lifecycle management policy for a specific log collection.
+    /// Files in the collection folder will be deleted after the specified duration.
+    /// </summary>
+    /// <param name="logCollectionId">The ID of the log collection</param>
+    /// <param name="retentionHours">Number of hours to retain files before deletion</param>
+    public async Task CreateLifecyclePolicyAsync(long logCollectionId, long retentionHours)
+    {
+        var armClient = GetArmClient();
+        var storageAccount = await GetStorageAccountAsync(armClient);
+
+        var managementPolicy = await GetOrCreateManagementPolicyAsync(storageAccount);
+        var policyData = managementPolicy.Data;
+
+        // Create rule name: logcollection-{logCollectionId}-lifecycle
+        var ruleName = $"logcollection-{logCollectionId}-lifecycle";
+
+        // Check if rule already exists
+        if (policyData.Rules.Any(r => r.Name == ruleName))
+        {
+            throw new InvalidOperationException($"Lifecycle policy for log collection {logCollectionId} already exists.");
+        }
+
+        // Create new rule for this collection
+        var definition = new ManagementPolicyDefinition(new ManagementPolicyAction
+        {
+            BaseBlob = new ManagementPolicyBaseBlob
+            {
+                Delete = new DateAfterModification
+                {
+                    DaysAfterModificationGreaterThan = (int)Math.Ceiling(retentionHours / 24.0)
+                }
+            }
+        })
+        {
+            Filters = new ManagementPolicyFilter(new[] { "blockBlob" })
+            {
+                PrefixMatch = { $"logs/v1/{logCollectionId}/" }
+            }
+        };
+
+        var rule = new ManagementPolicyRule(ruleName, ManagementPolicyRuleType.Lifecycle, definition)
+        {
+            IsEnabled = true
+        };
+
+        policyData.Rules.Add(rule);
+
+        // Update the management policy
+        await storageAccount.GetStorageAccountManagementPolicy().CreateOrUpdateAsync(WaitUntil.Completed, policyData);
+    }
+
+    /// <summary>
+    /// Updates the lifecycle management policy for a specific log collection.
+    /// </summary>
+    /// <param name="logCollectionId">The ID of the log collection</param>
+    /// <param name="retentionHours">New number of hours to retain files before deletion</param>
+    public async Task UpdateLifecyclePolicyAsync(long logCollectionId, long retentionHours)
+    {
+        var armClient = GetArmClient();
+        var storageAccount = await GetStorageAccountAsync(armClient);
+
+        var managementPolicy = await GetOrCreateManagementPolicyAsync(storageAccount);
+        var policyData = managementPolicy.Data;
+
+        var ruleName = $"logcollection-{logCollectionId}-lifecycle";
+
+        // Find the existing rule
+        var existingRule = policyData.Rules.FirstOrDefault(r => r.Name == ruleName);
+        if (existingRule == null)
+        {
+            throw new InvalidOperationException($"Lifecycle policy for log collection {logCollectionId} does not exist.");
+        }
+
+        // Update the retention period
+        if (existingRule.Definition.Actions.BaseBlob?.Delete != null)
+        {
+            existingRule.Definition.Actions.BaseBlob.Delete.DaysAfterModificationGreaterThan = (int)Math.Ceiling(retentionHours / 24.0);
+        }
+
+        // Update the management policy
+        await storageAccount.GetStorageAccountManagementPolicy().CreateOrUpdateAsync(WaitUntil.Completed, policyData);
+    }
+
+    /// <summary>
+    /// Deletes the lifecycle management policy for a specific log collection.
+    /// </summary>
+    /// <param name="logCollectionId">The ID of the log collection</param>
+    public async Task DeleteLifecyclePolicyAsync(long logCollectionId)
+    {
+        var armClient = GetArmClient();
+        var storageAccount = await GetStorageAccountAsync(armClient);
+
+        var managementPolicy = await GetOrCreateManagementPolicyAsync(storageAccount);
+        var policyData = managementPolicy.Data;
+
+        var ruleName = $"logcollection-{logCollectionId}-lifecycle";
+
+        // Find and remove the rule
+        var existingRule = policyData.Rules.FirstOrDefault(r => r.Name == ruleName);
+        if (existingRule == null)
+        {
+            throw new InvalidOperationException($"Lifecycle policy for log collection {logCollectionId} does not exist.");
+        }
+
+        policyData.Rules.Remove(existingRule);
+
+        // Update the management policy (or delete if no rules remain)
+        if (policyData.Rules.Count > 0)
+        {
+            await storageAccount.GetStorageAccountManagementPolicy().CreateOrUpdateAsync(WaitUntil.Completed, policyData);
+        }
+        else
+        {
+            await managementPolicy.DeleteAsync(WaitUntil.Completed);
+        }
+    }
+
+    private ArmClient GetArmClient()
+    {
+        var credential = new ClientSecretCredential(
+            AzureConfig.TenantId,
+            AzureConfig.ClientId,
+            AzureConfig.ClientSecret
+        );
+        return new ArmClient(credential);
+    }
+
+    private async Task<StorageAccountResource> GetStorageAccountAsync(ArmClient armClient)
+    {
+        var subscriptionId = AzureConfig.SubscriptionId;
+        var resourceGroupName = AzureConfig.ResourceGroupName;
+        var storageAccountName = AzureConfig.StorageAccountName;
+
+        var resourceId = StorageAccountResource.CreateResourceIdentifier(
+            subscriptionId,
+            resourceGroupName,
+            storageAccountName
+        );
+
+        var storageAccount = armClient.GetStorageAccountResource(resourceId);
+
+        // Verify the storage account exists
+        await storageAccount.GetAsync();
+
+        return storageAccount;
+    }
+
+    private async Task<StorageAccountManagementPolicyResource> GetOrCreateManagementPolicyAsync(StorageAccountResource storageAccount)
+    {
+        try
+        {
+            return await storageAccount.GetStorageAccountManagementPolicy().GetAsync();
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            // Management policy doesn't exist, create a new one
+            var policyData = new StorageAccountManagementPolicyData();
+
+            var result = await storageAccount.GetStorageAccountManagementPolicy().CreateOrUpdateAsync(WaitUntil.Completed, policyData);
+            return result.Value;
+        }
+    }
 
     public async Task<DownloadedFile> DownloadFileAsync(long logCollectionId, string fileName)
     {

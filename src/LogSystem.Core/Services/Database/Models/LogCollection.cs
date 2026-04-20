@@ -4,6 +4,9 @@ namespace LogSystem.Core.Services.Database;
 
 public class LogCollection
 {
+    private static readonly Regex ClientIdRegex = new(@"^[a-zA-Z0-9_.-]+$", RegexOptions.Compiled);
+    private static readonly Regex TableNameRegex = new(@"^[a-zA-Z0-9_]+$", RegexOptions.Compiled);
+
     public long ID { get; set; }
     public string Name { get; set; }
     public string ClientId { get; set; }
@@ -12,25 +15,51 @@ public class LogCollection
 
     public LogCollection(string name, string clientId, string tableName, long logDurationHours)
     {
-        // TODO: Create static methods to encapsulate the validations belows
-        // Use those static methods on the CreateOrUpdateLogCollection validation methods instead of duplicating the logic
-        // Update the UI for create/edit logcollection to inform the user about the allowed characters.
+        if (!TryValidateClientId(clientId, out var errorMessage))
+            throw new ArgumentException(errorMessage, nameof(clientId));
 
-        // Validate ClientId (alphanumeric + hyphen + underscore + dot)
-        if (!Regex.IsMatch(clientId, @"^[a-zA-Z0-9_.-]+$"))
-        {
-            throw new ArgumentException("ClientId must contain only alphanumeric characters, hyphens, underscores, and dots.", nameof(clientId));
-        }
-
-        // Validate TableName to prevent SQL injection (alphanumeric + underscore only)
-        if (!Regex.IsMatch(tableName, @"^[a-zA-Z0-9_]+$"))
-        {
-            throw new ArgumentException("TableName must contain only alphanumeric characters and underscores.", nameof(tableName));
-        }
+        if (!TryValidateTableName(tableName, out errorMessage))
+            throw new ArgumentException(errorMessage, nameof(tableName));
 
         Name = name;
         ClientId = clientId;
         TableName = tableName;
         LogDurationHours = logDurationHours;
+    }
+
+    public static bool TryValidateClientId(string clientId, out string? errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            errorMessage = "ClientId is required.";
+            return false;
+        }
+
+        if (!ClientIdRegex.IsMatch(clientId))
+        {
+            errorMessage = "ClientId must contain only alphanumeric characters, hyphens, underscores, and dots.";
+            return false;
+        }
+
+        errorMessage = null;
+        return true;
+    }
+
+    public static bool TryValidateTableName(string tableName, out string? errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(tableName))
+        {
+            errorMessage = "TableName is required.";
+            return false;
+        }
+
+        if (!TableNameRegex.IsMatch(tableName))
+        {
+            errorMessage = "TableName must contain only alphanumeric characters and underscores.";
+            return false;
+        }
+
+        errorMessage = null;
+        return true;
     }
 }
