@@ -94,61 +94,83 @@ public class LogExtractionService
 
             if(int.TryParse(value.ToString(), out var intValue))
                 return intValue;
-            
-            return null;
+
+            try
+            {
+                return Convert.ToInt32(value);
+            }            
+            catch
+            {
+                return null;
+            }
         }
 
-        // TODO: Convert the code below to be in the same style as the code above
-        if (attributeType == AttributeType.DateTime && value is DateTime)
-            return value;
-
-        if (attributeType == AttributeType.Boolean && value is bool)
-            return value;
-
-        if (attributeType == AttributeType.Decimal && value is decimal)
-            return value;
-
-        // Handle type conversions
-        try
+        if (attributeType == AttributeType.DateTime)
         {
-            if (attributeType == AttributeType.DateTime)
-            {
-                // Try direct conversion first, then parse string
-                if (value is string strValue)
-                    return DateTime.Parse(strValue);
+            if (value is DateTime)
+                return value;
 
+            if (value is string strValue && DateTime.TryParse(strValue, out var dateTimeValue))
+                return dateTimeValue;
+
+            try
+            {
                 return Convert.ToDateTime(value);
             }
-            else if (attributeType == AttributeType.Boolean)
+            catch
             {
-                // Handle various boolean representations
-                if (value is string boolStrValue)
-                    return bool.Parse(boolStrValue);
+                return null;
+            }
+        }
 
+        if (attributeType == AttributeType.Boolean)
+        {
+            if (value is bool)
+                return value;
+
+            if (value is string boolStrValue && bool.TryParse(boolStrValue, out var boolValue))
+                return boolValue;
+
+            try
+            {
                 return Convert.ToBoolean(value);
             }
-            else if (attributeType == AttributeType.Decimal)
+            catch
             {
-                // Handle decimal conversions
-                if (value is double doubleValue)
-                    return (decimal)doubleValue;
-                if (value is float floatValue)
-                    return (decimal)floatValue;
-                if (value is int intValue)
-                    return (decimal)intValue;
-                if (value is long longValue)
-                    return (decimal)longValue;
+                return null;
+            }
+        }
 
+        if (attributeType == AttributeType.Decimal)
+        {
+            if (value is decimal)
+                return value;
+
+            if (value is double doubleValue)
+                return (decimal)doubleValue;
+
+            if (value is float floatValue)
+                return (decimal)floatValue;
+
+            if (value is int intValue)
+                return (decimal)intValue;
+
+            if (value is long longValue)
+                return (decimal)longValue;
+
+            if (value is string strValue && decimal.TryParse(strValue, out var decimalValue))
+                return decimalValue;
+
+            try
+            {
                 return Convert.ToDecimal(value);
             }
+            catch
+            {
+                return null;
+            }
+        }
 
-            // If no specific conversion, return original value
-            return value;
-        }
-        catch
-        {
-            // If conversion fails, return null
-            return null;
-        }
+        return null;
     }
 }

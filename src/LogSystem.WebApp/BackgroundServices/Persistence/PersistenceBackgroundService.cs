@@ -112,25 +112,24 @@ public class PersistenceBackgroundService(
         string collectionName,
         LogCollectionCache logCollectionCache)
     {
-        // TODO: Update logcollectioncache.GetByNameAsync; must receive a new parameter "onNotFound", Func<LogCollection>, that must be executed when the element was not found
-        // The "onNotFound" must be executed inside the SemaphoreSlim
-        var logCollection = await logCollectionCache.GetByNameAsync(collectionName);
-
-        if (logCollection == null)
+        var logCollection = await logCollectionCache.GetByNameAsync(collectionName, async () =>
         {
-            logCollection = new LogCollection(
+            // Create new LogCollection
+            var newLogCollection = new LogCollection(
                 name: collectionName,
                 tableName: $"Logs_{collectionName}",
                 logDurationHours: logSystemConfig.DefaultLogDurationHours);
 
-            await databaseService.SaveLogCollectionAsync(logCollection);
-            logCollectionCache.InvalidateCache(logCollection);
-            logCollection = await logCollectionCache.GetByNameAsync(collectionName);
+            // Save to database
+            await databaseService.SaveLogCollectionAsync(newLogCollection);
 
-            await CreateLogCollectionAttributesAsync(logCollection!);
-        }
+            // Create default attributes for the new collection
+            await CreateLogCollectionAttributesAsync(newLogCollection);
 
-        return logCollection!;
+            return newLogCollection;
+        });
+
+        return logCollection;
     }
 
     private async Task CreateLogCollectionAttributesAsync(LogCollection logCollection)

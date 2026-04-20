@@ -120,23 +120,24 @@ public class BatchPersistenceService(
         string collectionName,
         LogCollectionCache logCollectionCache)
     {
-        var logCollection = await logCollectionCache.GetByNameAsync(collectionName);
-
-        if (logCollection == null)
+        var logCollection = await logCollectionCache.GetByNameAsync(collectionName, async () =>
         {
-            logCollection = new LogCollection(
+            // Create new LogCollection
+            var newLogCollection = new LogCollection(
                 name: collectionName,
                 tableName: $"Logs_{collectionName}",
                 logDurationHours: logSystemConfig.DefaultLogDurationHours);
 
-            await databaseService.SaveLogCollectionAsync(logCollection);
-            logCollectionCache.InvalidateCache(logCollection);
-            logCollection = await logCollectionCache.GetByNameAsync(collectionName);
+            // Save to database
+            await databaseService.SaveLogCollectionAsync(newLogCollection);
 
-            await CreateTimestampAttributeAsync(logCollection!);
-        }
+            // Create timestamp attribute for the new collection
+            await CreateTimestampAttributeAsync(newLogCollection);
 
-        return logCollection!;
+            return newLogCollection;
+        });
+
+        return logCollection;
     }
 
     private async Task CreateTimestampAttributeAsync(LogCollection logCollection)

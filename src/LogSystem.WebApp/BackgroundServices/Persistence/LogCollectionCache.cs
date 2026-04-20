@@ -27,7 +27,7 @@ public class LogCollectionCache
         return DateTime.UtcNow - entry.CreatedAt > CacheDuration;
     }
 
-    public async Task<LogCollection?> GetByNameAsync(string collectionName)
+    public async Task<LogCollection> GetByNameAsync(string collectionName, Func<Task<LogCollection>> onNotFound)
     {
         var cacheKey = GenerateCacheKey(collectionName);
 
@@ -49,10 +49,14 @@ public class LogCollectionCache
             // Load from database
             var logCollection = await DatabaseService.GetLogCollectionByNameAsync(collectionName);
 
+            // If not found in database, execute the onNotFound callback
+            if (logCollection == null)
+                logCollection = await onNotFound();
+
             // Create new cache entry with creation timestamp
             var newEntry = new CacheEntry<LogCollection>
             {
-                Entry = logCollection!,
+                Entry = logCollection,
                 CreatedAt = DateTime.UtcNow
             };
 
