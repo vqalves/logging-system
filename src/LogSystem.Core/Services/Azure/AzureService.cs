@@ -75,6 +75,9 @@ public class AzureService
         }
     }
 
+    // TODO: Implement methods that can create, edit and delete lifecycle policy based on a collectionid.
+    // The lifecycle specifies that files inside the collection folder must be deleted after X amount of time after creation.
+
     public async Task<DownloadedFile> DownloadFileAsync(long logCollectionId, string fileName)
     {
         // Initialize BlobServiceClient using AzureConfig connection string

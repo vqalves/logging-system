@@ -182,31 +182,18 @@ public class DatabaseService
         return columnExists;
     }
 
-    public async Task<LogCollection?> GetLogCollectionByNameAsync(string name)
+    public async Task<LogCollection?> GetLogCollectionByClientIdAsync(string clientId)
     {
-        using var connection = new SqlConnection(DatabaseConfig.ConnectionString);
-        await connection.OpenAsync();
+        await foreach (var collection in ListLogCollectionsAsync(clientIdEquals: clientId))
+            return collection;
 
-        var sql = @"
-            SELECT [ID], [Name], [TableName], [LogDurationHours]
-            FROM [dbo].[LogCollection]
-            WHERE [Name] = @Name;";
+        return null;
+    }
 
-        using var command = new SqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@Name", name);
-
-        using var reader = await command.ExecuteReaderAsync(CommandBehavior.SingleRow);
-
-        if (await reader.ReadAsync())
-        {
-            var logCollection = new LogCollection(
-                name: reader.GetString(1),
-                tableName: reader.GetString(2),
-                logDurationHours: reader.GetInt64(3)
-            );
-            logCollection.ID = reader.GetInt64(0);
-            return logCollection;
-        }
+    public async Task<LogCollection?> GetLogCollectionByIdAsync(long? id)
+    {
+        await foreach (var collection in ListLogCollectionsAsync(id: id))
+            return collection;
 
         return null;
     }
@@ -224,13 +211,14 @@ public class DatabaseService
             {
                 // Insert into LogCollection table and retrieve the new ID
                 var insertSql = @"
-                    INSERT INTO [dbo].[LogCollection] ([Name], [TableName], [LogDurationHours])
-                    VALUES (@Name, @TableName, @LogDurationHours);
+                    INSERT INTO [dbo].[LogCollection] ([Name], [ClientId], [TableName], [LogDurationHours])
+                    VALUES (@Name, @ClientId, @TableName, @LogDurationHours);
                     SELECT CAST(SCOPE_IDENTITY() AS BIGINT);";
 
                 using (var insertCommand = new SqlCommand(insertSql, connection, transaction))
                 {
                     insertCommand.Parameters.AddWithValue("@Name", logCollection.Name);
+                    insertCommand.Parameters.AddWithValue("@ClientId", logCollection.ClientId);
                     insertCommand.Parameters.AddWithValue("@TableName", logCollection.TableName);
                     insertCommand.Parameters.AddWithValue("@LogDurationHours", logCollection.LogDurationHours);
 
@@ -273,11 +261,12 @@ public class DatabaseService
             // UPDATE: Update existing log collection (TableName is immutable)
             var updateSql = @"
                 UPDATE [dbo].[LogCollection]
-                SET [Name] = @Name, [LogDurationHours] = @LogDurationHours
+                SET [Name] = @Name, [ClientId] = @ClientId, [LogDurationHours] = @LogDurationHours
                 WHERE [ID] = @ID;";
 
             using var updateCommand = new SqlCommand(updateSql, connection);
             updateCommand.Parameters.AddWithValue("@Name", logCollection.Name);
+            updateCommand.Parameters.AddWithValue("@ClientId", logCollection.ClientId);
             updateCommand.Parameters.AddWithValue("@LogDurationHours", logCollection.LogDurationHours);
             updateCommand.Parameters.AddWithValue("@ID", logCollection.ID);
 
@@ -434,24 +423,51 @@ public class DatabaseService
         }
     }
 
-    public async IAsyncEnumerable<LogCollection> ListLogCollectionsAsync()
+    public async IAsyncEnumerable<LogCollection> ListLogCollectionsAsync(long? id = null, string? clientIdEquals = null, string? tableNameEquals = null)
     {
+        var whereClauses = new List<string>();
+        var parameters = new List<SqlParameter>();
+
+        if (id.HasValue)
+        {
+            whereClauses.Add("[ID] = @ID");
+            parameters.Add(new SqlParameter("@ID", id.Value));
+        }
+
+        if (!string.IsNullOrWhiteSpace(clientIdEquals))
+        {
+            whereClauses.Add("[ClientId] = @ClientId");
+            parameters.Add(new SqlParameter("@ClientId", clientIdEquals));
+        }
+
+        if (!string.IsNullOrWhiteSpace(tableNameEquals))
+        {
+            whereClauses.Add("[TableName] = @TableName");
+            parameters.Add(new SqlParameter("@TableName", tableNameEquals));
+        }
+
         var sql = @"
-            SELECT [ID], [Name], [TableName], [LogDurationHours]
-            FROM [dbo].[LogCollection];";
+            SELECT [ID], [Name], [ClientId], [TableName], [LogDurationHours]
+            FROM [dbo].[LogCollection]";
+
+        if (whereClauses.Count > 0)
+            sql += " WHERE " + string.Join(" AND ", whereClauses);
 
         using var connection = new SqlConnection(DatabaseConfig.ConnectionString);
         await connection.OpenAsync();
 
         using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddRange(parameters.ToArray());
+
         using var reader = await command.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
         {
             var logCollection = new LogCollection(
                 name: reader.GetString(1),
-                tableName: reader.GetString(2),
-                logDurationHours: reader.GetInt64(3));
+                clientId: reader.GetString(2),
+                tableName: reader.GetString(3),
+                logDurationHours: reader.GetInt64(4));
             logCollection.ID = reader.GetInt64(0);
             yield return logCollection;
         }

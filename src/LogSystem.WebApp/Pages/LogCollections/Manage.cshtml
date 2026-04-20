@@ -13,20 +13,27 @@
 
     <div class="mb-3">
         <label for="name" class="form-label">Name</label>
-        <input type="text" class="form-control" id="name" name="name" required />
+        <input type="text" class="form-control" id="name" name="name" />
         <div class="invalid-feedback" id="name-error"></div>
     </div>
 
     <div class="mb-3">
+        <label for="clientId" class="form-label">Client ID</label>
+        <input type="text" class="form-control" id="clientId" name="clientId" />
+        <div class="invalid-feedback" id="clientId-error"></div>
+        <div class="form-text">Must contain only alphanumeric characters, hyphens, underscores, and dots.</div>
+    </div>
+
+    <div class="mb-3">
         <label for="tableName" class="form-label">Table Name</label>
-        <input type="text" class="form-control" id="tableName" name="tableName" required />
+        <input type="text" class="form-control" id="tableName" name="tableName" />
         <div class="invalid-feedback" id="tableName-error"></div>
         <div class="form-text">Must contain only alphanumeric characters and underscores.</div>
     </div>
 
     <div class="mb-3">
         <label for="logDurationHours" class="form-label">Log Duration (Hours)</label>
-        <input type="number" class="form-control" id="logDurationHours" name="logDurationHours" min="1" required />
+        <input type="number" class="form-control" id="logDurationHours" name="logDurationHours" min="1" />
         <div class="invalid-feedback" id="logDurationHours-error"></div>
         <div class="form-text">Number of hours to retain logs.</div>
 
@@ -140,6 +147,7 @@
                 // Populate form fields
                 document.getElementById('collection-id').value = collection.id;
                 document.getElementById('name').value = collection.name;
+                document.getElementById('clientId').value = collection.clientId;
                 document.getElementById('tableName').value = collection.tableName;
                 document.getElementById('logDurationHours').value = collection.logDurationHours;
 
@@ -159,6 +167,7 @@
             const formData = {
                 id: parseInt(document.getElementById('collection-id').value),
                 name: document.getElementById('name').value.trim(),
+                clientId: document.getElementById('clientId').value.trim(),
                 tableName: document.getElementById('tableName').value.trim(),
                 logDurationHours: parseInt(document.getElementById('logDurationHours').value)
             };

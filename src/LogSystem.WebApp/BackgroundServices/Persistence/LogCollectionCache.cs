@@ -17,9 +17,9 @@ public class LogCollectionCache
         DatabaseService = databaseService;
     }
 
-    private string GenerateCacheKey(string collectionName)
+    private string GenerateCacheKey(string clientId)
     {
-        return $"LogCollection_{collectionName}";
+        return $"LogCollection_{clientId}";
     }
 
     private bool IsExpired(CacheEntry<LogCollection> entry)
@@ -27,9 +27,9 @@ public class LogCollectionCache
         return DateTime.UtcNow - entry.CreatedAt > CacheDuration;
     }
 
-    public async Task<LogCollection> GetByNameAsync(string collectionName, Func<Task<LogCollection>> onNotFound)
+    public async Task<LogCollection> GetByClientIdAsync(string clientId, Func<Task<LogCollection>> onNotFound)
     {
-        var cacheKey = GenerateCacheKey(collectionName);
+        var cacheKey = GenerateCacheKey(clientId);
 
         // Try to get from cache and check if not expired (lazy expiration)
         if (Cache.TryGetValue(cacheKey, out var cacheEntry) && !IsExpired(cacheEntry))
@@ -47,7 +47,7 @@ public class LogCollectionCache
                 return cacheEntry.Entry;
 
             // Load from database
-            var logCollection = await DatabaseService.GetLogCollectionByNameAsync(collectionName);
+            var logCollection = await DatabaseService.GetLogCollectionByClientIdAsync(clientId);
 
             // If not found in database, execute the onNotFound callback
             if (logCollection == null)
@@ -80,7 +80,7 @@ public class LogCollectionCache
         else
         {
             // Invalidate specific log collection
-            var cacheKey = GenerateCacheKey(logCollection.Name);
+            var cacheKey = GenerateCacheKey(logCollection.ClientId);
             Cache.TryRemove(cacheKey, out _);
         }
     }

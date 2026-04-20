@@ -112,11 +112,12 @@ public class PersistenceBackgroundService(
         string collectionName,
         LogCollectionCache logCollectionCache)
     {
-        var logCollection = await logCollectionCache.GetByNameAsync(collectionName, async () =>
+        var logCollection = await logCollectionCache.GetByClientIdAsync(collectionName, async () =>
         {
             // Create new LogCollection
             var newLogCollection = new LogCollection(
                 name: collectionName,
+                clientId: collectionName,
                 tableName: $"Logs_{collectionName}",
                 logDurationHours: logSystemConfig.DefaultLogDurationHours);
 

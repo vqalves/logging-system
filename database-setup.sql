@@ -27,6 +27,7 @@ GO
 -- Columns:
 --   ID                - Unique identifier for the log collection (auto-incrementing)
 --   Name              - Human-readable name of the log collection
+--   ClientId          - Unique client identifier (business key)
 --   TableName         - Name of the dynamic log table (e.g., "Logs_SystemA")
 --   LogDurationHours  - Number of hours to retain logs before expiration
 --
@@ -40,6 +41,7 @@ BEGIN
     (
         [ID]                BIGINT IDENTITY(1,1) NOT NULL,
         [Name]              NVARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+        [ClientId]          VARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
         [TableName]         NVARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
         [LogDurationHours]  BIGINT NOT NULL,
 
@@ -54,17 +56,63 @@ BEGIN
 END
 GO
 
--- Create unique index on TableName to prevent duplicate table names
+-- Add ClientId column if it doesn't exist (for existing databases)
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LogCollection') AND name = 'ClientId')
+BEGIN
+    ALTER TABLE [dbo].[LogCollection]
+        ADD [ClientId] VARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NULL;
+
+    PRINT 'Column [ClientId] added to [LogCollection] table.';
+
+    -- Update existing rows with a default ClientId if needed
+    -- You may need to manually set appropriate ClientId values for existing records
+    PRINT 'WARNING: Existing records have NULL ClientId. Please update them with appropriate values.';
+END
+ELSE
+BEGIN
+    PRINT 'Column [ClientId] already exists in [LogCollection] table.';
+END
+GO
+
+-- Make ClientId NOT NULL after ensuring all rows have values (for manual migration)
+-- Uncomment the following block AFTER all existing records have been updated with ClientId values
+/*
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LogCollection') AND name = 'ClientId' AND is_nullable = 1)
+BEGIN
+    ALTER TABLE [dbo].[LogCollection]
+        ALTER COLUMN [ClientId] VARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL;
+
+    PRINT 'Column [ClientId] set to NOT NULL.';
+END
+GO
+*/
+
+-- Create unique constraint on ClientId to prevent duplicate client identifiers
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_LogCollection_ClientId' AND object_id = OBJECT_ID('dbo.LogCollection'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [UX_LogCollection_ClientId]
+        ON [dbo].[LogCollection] ([ClientId] ASC)
+        WHERE [ClientId] IS NOT NULL;
+
+    PRINT 'Unique constraint [UX_LogCollection_ClientId] created successfully.';
+END
+ELSE
+BEGIN
+    PRINT 'Unique constraint [UX_LogCollection_ClientId] already exists.';
+END
+GO
+
+-- Create unique constraint on TableName to prevent duplicate table names
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_LogCollection_TableName' AND object_id = OBJECT_ID('dbo.LogCollection'))
 BEGIN
     CREATE UNIQUE NONCLUSTERED INDEX [UX_LogCollection_TableName]
         ON [dbo].[LogCollection] ([TableName] ASC);
 
-    PRINT 'Index [UX_LogCollection_TableName] created successfully.';
+    PRINT 'Unique constraint [UX_LogCollection_TableName] created successfully.';
 END
 ELSE
 BEGIN
-    PRINT 'Index [UX_LogCollection_TableName] already exists.';
+    PRINT 'Unique constraint [UX_LogCollection_TableName] already exists.';
 END
 GO
 
