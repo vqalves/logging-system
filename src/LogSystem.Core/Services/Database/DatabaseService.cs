@@ -407,6 +407,56 @@ public class DatabaseService
         await bulkCopy.WriteToServerAsync(dataTable);
     }
 
+    public async IAsyncEnumerable<LogAttribute> ListLogAttributesAsync()
+    {
+        var sql = @"
+            SELECT [ID], [LogCollectionID], [Name], [SqlColumnName], [AttributeTypeID], [ExtractionStyleID], [ExtractionExpression]
+            FROM [dbo].[LogCollectionAttribute];";
+
+        using var connection = new SqlConnection(DatabaseConfig.ConnectionString);
+        await connection.OpenAsync();
+
+        using var command = new SqlCommand(sql, connection);
+        using var reader = await command.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            yield return new LogAttribute(
+                logCollectionID: reader.GetInt64(1),
+                name: reader.GetString(2),
+                sqlColumnName: reader.GetString(3),
+                attributeTypeID: reader.GetString(4),
+                extractionStyleID: reader.GetString(5),
+                extractionExpression: reader.GetString(6))
+            {
+                ID = reader.GetInt64(0)
+            };
+        }
+    }
+
+    public async IAsyncEnumerable<LogCollection> ListLogCollectionsAsync()
+    {
+        var sql = @"
+            SELECT [ID], [Name], [TableName], [LogDurationHours]
+            FROM [dbo].[LogCollection];";
+
+        using var connection = new SqlConnection(DatabaseConfig.ConnectionString);
+        await connection.OpenAsync();
+
+        using var command = new SqlCommand(sql, connection);
+        using var reader = await command.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            var logCollection = new LogCollection(
+                name: reader.GetString(1),
+                tableName: reader.GetString(2),
+                logDurationHours: reader.GetInt64(3));
+            logCollection.ID = reader.GetInt64(0);
+            yield return logCollection;
+        }
+    }
+
     public async IAsyncEnumerable<LogAttribute> ListAttributesOfCollectionAsync(LogCollection logCollection)
     {
         var sql = @"

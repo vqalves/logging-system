@@ -33,6 +33,8 @@ public class LogAttribute
         ExtractionExpression = extractionExpression;
     }
 
+    public bool HasExtractionStyle(ExtractionStyle extractionStyle) => extractionStyle.Value.Equals(ExtractionStyleID, StringComparison.InvariantCultureIgnoreCase);
+
     public AttributeType GetAttributeType() => AttributeType.Parse(AttributeTypeID)!;
     public bool IsAttributeType(AttributeType attributeType) => attributeType.Value.Equals(AttributeTypeID, StringComparison.InvariantCultureIgnoreCase);
 }

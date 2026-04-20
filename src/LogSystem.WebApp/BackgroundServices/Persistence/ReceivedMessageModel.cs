@@ -1,4 +1,5 @@
 using System.Text.Json;
+using LogSystem.Core.Services.Database;
 using RabbitMQ.Client;
 
 namespace LogSystem.WebApp.BackgroundServices.Persistence;
@@ -9,25 +10,30 @@ public class ReceivedMessageModel
     public required ulong DeliveryTag { get; init; }
     public required string Payload { get; init; }
     public required PersistenceStatus Status { get; set; }
+    public Log? Log { get; set; }
 
-    private JsonDocument? _jsonDocument;
-    private JsonDocument GetJsonDocument()
+    private Lazy<JsonDocument?>? _jsonDocument;
+    public JsonDocument? GetJsonDocument()
     {
-        _jsonDocument ??= JsonDocument.Parse(Payload);
-        return _jsonDocument;
+        _jsonDocument ??= new Lazy<JsonDocument?>(() =>
+        {
+            try { return JsonDocument.Parse(Payload); }
+            catch(JsonException) { return null; }
+        });
+
+        return _jsonDocument.Value;
     }
 
     public string GetLogCollectionName()
     {
         var document = GetJsonDocument();
 
-        if (document.RootElement.TryGetProperty("Properties", out var properties) &&
-            properties.TryGetProperty("LogCollectionName", out var logCollectionName))
-        {
-            return logCollectionName.GetString() ?? string.Empty;
-        }
+        if(document != null)
+            if (document.RootElement.TryGetProperty("Properties", out var properties))
+                if(properties.TryGetProperty("LogCollectionName", out var logCollectionName))
+                    return logCollectionName.GetString() ?? string.Empty;
 
-        return string.Empty;
+        throw new ArgumentException("Cannot retrieve collection name from message");
     }
 
     public enum PersistenceStatus

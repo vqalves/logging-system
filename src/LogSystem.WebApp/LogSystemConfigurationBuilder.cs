@@ -24,8 +24,8 @@ public class LogSystemConfigurationBuilder
 
     public AzureConfig GetAzureConfig()
     {
-        var connectionString = GetConfigValue("AzureConnectionString") ?? throw new InvalidOperationException("AzureConnectionString not found in configuration");
-        var containerName = GetConfigValue("AzureContainerName") ?? "logs";
+        var connectionString = GetConfigValue("AZURE_BLOB_STORAGE_CONNECTION_STRING") ?? throw new InvalidOperationException("AZURE_BLOB_STORAGE_CONNECTION_STRING not found in configuration");
+        var containerName = GetConfigValue("AZURE_BLOB_STORAGE_CONTAINER_NAME") ?? "logs";
 
         return new AzureConfig
         {
@@ -36,7 +36,7 @@ public class LogSystemConfigurationBuilder
 
     public DatabaseConfig GetDatabaseConfig()
     {
-        var connectionString = GetConfigValue("DatabaseConnectionString") ?? throw new InvalidOperationException("DatabaseConnectionString not found in configuration");
+        var connectionString = GetConfigValue("LOG_DATABASE_CONNECTION_STRING") ?? throw new InvalidOperationException("LOG_DATABASE_CONNECTION_STRING not found in configuration");
 
         return new DatabaseConfig
         {
@@ -44,15 +44,38 @@ public class LogSystemConfigurationBuilder
         };
     }
 
+    public LogSystemConfig GetLogSystemConfig()
+    {
+        var cacheDurationMinutesStr = GetConfigValue("SYSTEM_CACHE_DURATION_MINUTES");
+        var defaultLogDurationHoursStr = GetConfigValue("LOGCOLLECTION_DEFAULT_LOG_TTL_HOURS");
+
+        if (string.IsNullOrWhiteSpace(cacheDurationMinutesStr) || !int.TryParse(cacheDurationMinutesStr, out var cacheDurationMinutes))
+            throw new InvalidOperationException($"SYSTEM_CACHE_DURATION_MINUTES value '{cacheDurationMinutesStr}' is not a valid integer");
+
+        if (string.IsNullOrWhiteSpace(defaultLogDurationHoursStr) || !long.TryParse(defaultLogDurationHoursStr, out var defaultLogDurationHours))
+            throw new InvalidOperationException($"LOGCOLLECTION_DEFAULT_LOG_TTL_HOURS value '{defaultLogDurationHoursStr}' is not a valid long");
+
+        return new LogSystemConfig
+        {
+            CacheDurationMinutes = TimeSpan.FromMinutes(cacheDurationMinutes),
+            DefaultLogDurationHours = defaultLogDurationHours
+        };
+    }
+
     public PersistenceBackgroundServiceConfig GetPersistenceBackgroundServiceConfig()
     {
-        var rabbitMqConnectionString = GetConfigValue("RabbitMqConnectionString") ?? throw new InvalidOperationException("RabbitMqConnectionString not found in configuration");
-        var rabbitMqQueueName = GetConfigValue("RabbitMqQueueName") ?? throw new InvalidOperationException("RabbitMqQueueName not found in configuration");
+        var rabbitMqConnectionString = GetConfigValue("RABBITMQ_CONNECTION_STRING") ?? throw new InvalidOperationException("RABBITMQ_CONNECTION_STRING not found in configuration");
+        var rabbitMqQueueName = GetConfigValue("RABBITMQ_QUEUE_NAME") ?? throw new InvalidOperationException("RABBITMQ_QUEUE_NAME not found in configuration");
+        var maxFrequencySecondsStr = GetConfigValue("PERSISTENCE_MAX_FREQUENCY_SECONDS");
+
+        if (string.IsNullOrWhiteSpace(maxFrequencySecondsStr) || !int.TryParse(maxFrequencySecondsStr, out var maxFrequencySeconds))
+            throw new InvalidOperationException($"PERSISTENCE_MAX_FREQUENCY_SECONDS value '{maxFrequencySecondsStr}' is not a valid integer");
 
         return new PersistenceBackgroundServiceConfig
         {
             RabbitMqConnectionString = rabbitMqConnectionString,
-            RabbitMqQueueName = rabbitMqQueueName
+            RabbitMqQueueName = rabbitMqQueueName,
+            MaxFrequency = TimeSpan.FromSeconds(maxFrequencySeconds)
         };
     }
 

@@ -8,7 +8,7 @@ public class LogCollectionCache
 {
     private readonly TimeSpan CacheDuration;
     private readonly DatabaseService DatabaseService;
-    private readonly ConcurrentDictionary<string, CacheEntry> Cache = new();
+    private readonly ConcurrentDictionary<string, CacheEntry<LogCollection>> Cache = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> LoadLocks = new();
 
     public LogCollectionCache(TimeSpan cacheDuration, DatabaseService databaseService)
@@ -33,7 +33,7 @@ public class LogCollectionCache
 
         // Try to get from cache and check if not expired (lazy expiration)
         if (Cache.TryGetValue(cacheKey, out var cacheEntry) && !IsExpired(cacheEntry))
-            return cacheEntry.LogCollection;
+            return cacheEntry.Entry;
 
         // Cache miss or expired - need to load from database
         // Get or create a semaphore specific to this cache key
@@ -44,7 +44,7 @@ public class LogCollectionCache
         {
             // Double-check after acquiring lock (another thread may have loaded it)
             if (Cache.TryGetValue(cacheKey, out cacheEntry) && !IsExpired(cacheEntry))
-                return cacheEntry.LogCollection;
+                return cacheEntry.Entry;
 
             // Load from database
             var logCollection = await DatabaseService.GetLogCollectionByNameAsync(collectionName);
