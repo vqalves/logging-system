@@ -1,7 +1,7 @@
 using LogSystem.Core.Services.Database;
 using Microsoft.AspNetCore.Mvc;
 
-namespace LogSystem.WebApp.Endpoints.LogCollection;
+namespace LogSystem.WebApp.Endpoints.LogCollectionEndpoints;
 
 public static class GetLogCollectionsEndpoint
 {

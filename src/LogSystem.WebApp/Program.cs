@@ -1,12 +1,12 @@
+using LogSystem.WebApp;
+using LogSystem.WebApp.Endpoints.LogCollectionEndpoints;
+using LogSystem.WebApp.Endpoints.LogAttributeEndpoints;
+using LogSystem.WebApp.Endpoints.LogDataEndpoints;
 using LogSystem.Core.Services.Azure;
 using LogSystem.Core.Services.Database;
-using LogSystem.WebApp;
 using LogSystem.WebApp.BackgroundServices.Persistence;
-using LogSystem.WebApp.BackgroundServices.Cleanup;
-using LogSystem.WebApp.Endpoints.LogCollection;
-using LogSystem.WebApp.Endpoints.LogAttribute;
-using LogSystem.WebApp.Endpoints.LogData;
 using LogSystem.WebApp.Services;
+using LogSystem.WebApp.BackgroundServices.Cleanup;
 
 var configBuilder = new LogSystemConfigurationBuilder();
 
@@ -15,21 +15,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorPages();
 
-// TODO: Move service injections to a extension method inside LogSystemConfigurationBuilder
-// Register configurations
-var azureConfig = configBuilder.GetAzureConfig();
-var databaseConfig = configBuilder.GetDatabaseConfig();
-var logSystemConfig = configBuilder.GetLogSystemConfig();
-var persistenceConfig = configBuilder.GetPersistenceBackgroundServiceConfig();
-var cleanupConfig = configBuilder.GetCleanupBackgroundServiceConfig();
-var publishConfig = configBuilder.GetPublishServiceConfig();
-
-builder.Services.AddSingleton(azureConfig);
-builder.Services.AddSingleton(databaseConfig);
-builder.Services.AddSingleton(logSystemConfig);
-builder.Services.AddSingleton(persistenceConfig);
-builder.Services.AddSingleton(cleanupConfig);
-builder.Services.AddSingleton(publishConfig);
+// Configure LogSystem services
+configBuilder.ConfigureServices(builder.Services);
 
 // Register services
 builder.Services.AddSingleton<AzureService>();
@@ -44,16 +31,19 @@ builder.Services.AddSingleton<RabbitMqPublisher>();
 builder.Services.AddSingleton<LogCollectionCache>(p =>
 {
     var databaseService = p.GetRequiredService<DatabaseService>();
+    var logSystemConfig = p.GetRequiredService<LogSystemConfig>();
 
     return new LogCollectionCache(
         cacheDuration: logSystemConfig.CacheDurationMinutes,
-        databaseService: databaseService
+        databaseService: databaseService,
+        logSystemConfig: logSystemConfig
     );
 });
 
 builder.Services.AddSingleton<LogAttributeCache>(p =>
 {
     var databaseService = p.GetRequiredService<DatabaseService>();
+    var logSystemConfig = p.GetRequiredService<LogSystemConfig>();
 
     return new LogAttributeCache(
         cacheDuration: logSystemConfig.CacheDurationMinutes,
@@ -64,6 +54,7 @@ builder.Services.AddSingleton<LogAttributeCache>(p =>
 // Register background services
 builder.Services.AddHostedService<PersistenceBackgroundService>();
 builder.Services.AddHostedService<CleanupBackgroundService>();
+
 
 var app = builder.Build();
 

@@ -1,13 +1,11 @@
 
 using LogSystem.Core.Services.Database;
-using Microsoft.Data.SqlClient;
 
 namespace LogSystem.WebApp.BackgroundServices.Cleanup;
 
 public class CleanupBackgroundService(
     CleanupBackgroundServiceConfig cleanupConfig,
     DatabaseService databaseService,
-    DatabaseConfig databaseConfig,
     ILogger<CleanupBackgroundService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -81,29 +79,15 @@ public class CleanupBackgroundService(
     {
         try
         {
-            var cutoffTime = DateTime.UtcNow;
             var totalRowsDeleted = 0;
 
             logger.LogDebug("Starting cleanup for LogCollection {ClientId} (Table: {TableName})",
                 logCollection.ClientId, logCollection.TableName);
 
-            // TODO: Move the sql logic to the corresponding repository and call the repository here
-            using var connection = new SqlConnection(databaseConfig.ConnectionString);
-            await connection.OpenAsync(stoppingToken);
-
             while (!stoppingToken.IsCancellationRequested)
             {
-                // Delete in batches using DELETE TOP
-                var deleteSql = $@"
-                    DELETE TOP (@MaxRows)
-                    FROM [logcollection].[{logCollection.TableName}]
-                    WHERE [ValidUntilUtc] < @CutoffTime";
-
-                using var command = new SqlCommand(deleteSql, connection);
-                command.Parameters.AddWithValue("@MaxRows", cleanupConfig.MaxRowsPerBatch);
-                command.Parameters.AddWithValue("@CutoffTime", cutoffTime);
-
-                var rowsDeleted = await command.ExecuteNonQueryAsync(stoppingToken);
+                // Delete in batches using the database service
+                var rowsDeleted = await databaseService.DeleteExpiredLogsAsync(logCollection, cleanupConfig.MaxRowsPerBatch);
                 totalRowsDeleted += rowsDeleted;
 
                 // If we deleted fewer rows than the batch size, we're done

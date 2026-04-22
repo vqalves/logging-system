@@ -1,6 +1,6 @@
 using LogSystem.WebApp.Services;
 
-namespace LogSystem.WebApp.Endpoints.LogData;
+namespace LogSystem.WebApp.Endpoints.LogDataEndpoints;
 
 public static class AddLogEndpoint
 {

@@ -9,8 +9,6 @@ namespace LogSystem.WebApp.BackgroundServices.Persistence;
 
 public class PersistenceBackgroundService(
     PersistenceBackgroundServiceConfig persistenceConfig,
-    LogSystemConfig logSystemConfig,
-    DatabaseService databaseService,
     BatchPersistenceService batchPersistenceService,
     LogCollectionCache logCollectionCache,
     LogAttributeCache logAttributeCache,
@@ -58,9 +56,9 @@ public class PersistenceBackgroundService(
                         Status = ReceivedMessageModel.PersistenceStatus.Pending
                     };
 
-                    var logCollectionName = receivedMessage.GetLogCollectionName();
+                    var logCollectionName = receivedMessage.GetLogCollectionClientId();
 
-                    var logCollection = await GetOrCreateLogCollectionAsync(logCollectionName, logCollectionCache);
+                    var logCollection = await logCollectionCache.GetOrCreateByClientIdAsync(logCollectionName);
                     var attributes = await logAttributeCache.ListAttributesAsync(logCollection);
                     var attributesList = attributes.ToList();
 
@@ -105,64 +103,5 @@ public class PersistenceBackgroundService(
             logger.LogError(ex, "Fatal error in PersistenceBackgroundService");
             throw;
         }
-    }
-
-    private async Task<LogCollection> GetOrCreateLogCollectionAsync(
-        string collectionName,
-        LogCollectionCache logCollectionCache)
-    {
-        var logCollection = await logCollectionCache.GetByClientIdAsync(collectionName, async () =>
-        {
-            // Create new LogCollection
-            var newLogCollection = new LogCollection(
-                name: collectionName,
-                clientId: collectionName,
-                tableName: $"Logs_{collectionName}",
-                logDurationHours: logSystemConfig.DefaultLogDurationHours);
-
-            // Save to database
-            await databaseService.SaveLogCollectionAsync(newLogCollection);
-
-            // Create default attributes for the new collection
-            await CreateLogCollectionAttributesAsync(newLogCollection);
-
-            return newLogCollection;
-        });
-
-        return logCollection;
-    }
-
-    private async Task CreateLogCollectionAttributesAsync(LogCollection logCollection)
-    {
-        // Timestamp
-        var timestampAttribute = new LogAttribute(
-            logCollectionID: logCollection.ID,
-            name: "Timestamp",
-            sqlColumnName: "Timestamp",
-            attributeTypeID: AttributeType.DateTime.Value,
-            extractionStyleID: ExtractionStyle.JSON.Value,
-            extractionExpression: "$.Timestamp");
-
-        await databaseService.CreateAttributeAsync(logCollection, timestampAttribute);
-
-        var logLevelAttribute = new LogAttribute(
-            logCollectionID: logCollection.ID,
-            name: "Log Level",
-            sqlColumnName: "LogLevel",
-            attributeTypeID: AttributeType.Text.Value,
-            extractionStyleID: ExtractionStyle.JSON.Value,
-            extractionExpression: "$.Level");
-
-        await databaseService.CreateAttributeAsync(logCollection, logLevelAttribute);
-
-        var exceptionAttribute = new LogAttribute(
-            logCollectionID: logCollection.ID,
-            name: "Exception",
-            sqlColumnName: "Exception",
-            attributeTypeID: AttributeType.Text.Value,
-            extractionStyleID: ExtractionStyle.JSON.Value,
-            extractionExpression: "$.Exception.Message");
-
-        await databaseService.CreateAttributeAsync(logCollection, exceptionAttribute);
     }
 }

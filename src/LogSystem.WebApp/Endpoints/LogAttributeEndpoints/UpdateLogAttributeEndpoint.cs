@@ -2,7 +2,7 @@ using LogSystem.Core.Services.Database;
 using LogSystem.WebApp.BackgroundServices.Persistence;
 using Microsoft.AspNetCore.Mvc;
 
-namespace LogSystem.WebApp.Endpoints.LogAttribute;
+namespace LogSystem.WebApp.Endpoints.LogAttributeEndpoints;
 
 public static class UpdateLogAttributeEndpoint
 {

@@ -135,4 +135,22 @@ public class LogSystemConfigurationBuilder
 
         return Environment.GetEnvironmentVariable(key);
     }
+
+    public void ConfigureServices(IServiceCollection services)
+    {
+        // Register configurations
+        var azureConfig = GetAzureConfig();
+        var databaseConfig = GetDatabaseConfig();
+        var logSystemConfig = GetLogSystemConfig();
+        var persistenceConfig = GetPersistenceBackgroundServiceConfig();
+        var cleanupConfig = GetCleanupBackgroundServiceConfig();
+        var publishConfig = GetPublishServiceConfig();
+
+        services.AddSingleton(azureConfig);
+        services.AddSingleton(databaseConfig);
+        services.AddSingleton(logSystemConfig);
+        services.AddSingleton(persistenceConfig);
+        services.AddSingleton(cleanupConfig);
+        services.AddSingleton(publishConfig);
+    }
 }

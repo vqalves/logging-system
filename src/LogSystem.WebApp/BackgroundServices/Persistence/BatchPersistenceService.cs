@@ -1,7 +1,5 @@
 using LogSystem.Core.Services.Azure;
 using LogSystem.Core.Services.Database;
-using Microsoft.VisualBasic;
-using RabbitMQ.Client;
 using System.Text.Json;
 using System.Threading.Channels;
 
@@ -9,11 +7,15 @@ namespace LogSystem.WebApp.BackgroundServices.Persistence;
 
 public class BatchPersistenceService(
     PersistenceBackgroundServiceConfig persistenceConfig,
-    LogSystemConfig logSystemConfig,
     AzureService azureService,
     DatabaseService databaseService,
     ILogger<BatchPersistenceService> logger)
 {
+    private readonly JsonSerializerOptions JsonSerializerOptions = new JsonSerializerOptions
+    {
+        WriteIndented = false,
+    };
+
     public async Task ProcessMessagesAsync(
         Channel<ReceivedMessageModel> messageChannel,
         LogCollectionCache logCollectionCache,
@@ -33,11 +35,28 @@ public class BatchPersistenceService(
             var messages = ReadAvailableMessages(messageChannel);
             var messagesPerCollectionName = GroupMessagesByCollection(messages);
 
-            await ProcessBatchAsync(messagesPerCollectionName, logCollectionCache, batchStartTime);
+            var persistedFileName = $"{batchStartTime:yyyyMMddHHmmss}.json";
 
-            await HandleMessageAcknowledgmentsAsync(messages);
+            try
+            {
+                await ProcessBatchesAsync(messagesPerCollectionName, logCollectionCache, persistedFileName);
+            }
+            catch(Exception ex)
+            {
+                logger.LogError(ex, "Error persisting batch");
+            }
 
-            // TODO: Implement Dispose on all processed messages, to Dispose of JsonDocument (if created)
+            try
+            {
+                await HandleMessageAcknowledgmentsAsync(messages);
+            }
+            catch(Exception ex)
+            {
+                logger.LogError(ex, "Error acknowleding messages");
+            }
+            
+            foreach (var message in messages)
+                message.Dispose();
         }
     }
 
@@ -56,57 +75,68 @@ public class BatchPersistenceService(
     private List<ReceivedMessageModel> ReadAvailableMessages(Channel<ReceivedMessageModel> messageChannel)
     {
         var messages = new List<ReceivedMessageModel>();
+
         while (messageChannel.Reader.TryRead(out var message))
             messages.Add(message);
+
         return messages;
     }
 
     private List<CollectionMessageGroup> GroupMessagesByCollection(List<ReceivedMessageModel> messages)
     {
         return messages
-            .GroupBy(x => x.GetLogCollectionName())
+            .GroupBy(x => x.GetLogCollectionClientId())
             .Select(x => new CollectionMessageGroup(x.Key, x.ToList()))
             .ToList();
     }
 
-    private async Task ProcessBatchAsync(
+    private async Task ProcessBatchesAsync(
         List<CollectionMessageGroup> messagesPerCollectionName,
         LogCollectionCache logCollectionCache,
-        DateTime batchStartTime)
+        string persistedFileName)
     {
+        var createdTasks = new List<Task>(messagesPerCollectionName.Count);
+        
         foreach (var collectionGroup in messagesPerCollectionName)
         {
-            try
-            {
-                await PersistCollectionGroupAsync(
-                    collectionGroup,
-                    logCollectionCache,
-                    batchStartTime);
+            var task = Task.Run(() => ProcessBatchAsync(logCollectionCache, persistedFileName, collectionGroup));
+            createdTasks.Add(task);
+        }
 
-                MarkMessagesAsSuccessful(collectionGroup.Messages);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to persist messages for collection {Name}", collectionGroup.CollectionName);
-                MarkMessagesAsFailed(collectionGroup.Messages);
-            }
+        await Task.WhenAll(createdTasks);
+    }
+
+    private async Task ProcessBatchAsync(LogCollectionCache logCollectionCache, string persistedFileName, CollectionMessageGroup collectionGroup)
+    {
+        try
+        {
+            await PersistCollectionGroupAsync(
+                collectionGroup,
+                logCollectionCache,
+                persistedFileName);
+
+            MarkMessagesAsSuccessful(collectionGroup.Messages);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to persist messages for collection {Name}", collectionGroup.CollectionClientId);
+            MarkMessagesAsFailed(collectionGroup.Messages);
         }
     }
 
     private async Task PersistCollectionGroupAsync(
         CollectionMessageGroup collectionGroup,
         LogCollectionCache logCollectionCache,
-        DateTime batchStartTime)
+        string persistedFileName)
     {
-        var logCollection = await GetOrCreateLogCollectionAsync(collectionGroup.CollectionName, logCollectionCache);
-
-        var persistedFileName = $"{batchStartTime:yyyyMMddHHmmss}.json";
+        var logCollection = await logCollectionCache.GetOrCreateByClientIdAsync(collectionGroup.CollectionClientId);
 
         // Extract logs from messages (using pre-extracted logs where available)
         var logs = new List<Log>();
         for (int i = 0; i < collectionGroup.Messages.Count; i++)
         {
             var message = collectionGroup.Messages[i];
+
             if (message.Log != null)
             {
                 // Update source file information for batch persistence
@@ -119,44 +149,6 @@ public class BatchPersistenceService(
         await PersistLogsAsync(collectionGroup, logCollection, logs, persistedFileName);
     }
 
-    private async Task<LogCollection> GetOrCreateLogCollectionAsync(
-        string collectionName,
-        LogCollectionCache logCollectionCache)
-    {
-        var logCollection = await logCollectionCache.GetByClientIdAsync(collectionName, async () =>
-        {
-            // Create new LogCollection
-            var newLogCollection = new LogCollection(
-                name: collectionName,
-                clientId: collectionName,
-                tableName: $"Logs_{collectionName}",
-                logDurationHours: logSystemConfig.DefaultLogDurationHours);
-
-            // Save to database
-            await databaseService.SaveLogCollectionAsync(newLogCollection);
-
-            // Create timestamp attribute for the new collection
-            await CreateTimestampAttributeAsync(newLogCollection);
-
-            return newLogCollection;
-        });
-
-        return logCollection;
-    }
-
-    private async Task CreateTimestampAttributeAsync(LogCollection logCollection)
-    {
-        var timestampAttribute = new LogAttribute(
-            logCollectionID: logCollection.ID,
-            name: "Timestamp",
-            sqlColumnName: "Timestamp",
-            attributeTypeID: AttributeType.DateTime.Value,
-            extractionStyleID: ExtractionStyle.JSON.Value,
-            extractionExpression: "$.Timestamp");
-
-        await databaseService.CreateAttributeAsync(logCollection, timestampAttribute);
-    }
-
     private async Task PersistLogsAsync(
         CollectionMessageGroup collectionGroup,
         LogCollection logCollection,
@@ -164,12 +156,10 @@ public class BatchPersistenceService(
         string persistedFileName)
     {
         var jsonContent = CreateJsonContent(collectionGroup.Messages);
-        var fileDuration = TimeSpan.FromHours(logCollection.LogDurationHours);
 
         var azureTask = azureService.UploadFileAsync(
-            logCollectionId: logCollection.ID,
+            collectionName: logCollection.TableName,
             fileName: persistedFileName,
-            fileDuration: fileDuration,
             content: jsonContent);
 
         var databaseTask = databaseService.SaveLogsAsync(logCollection, logs);
@@ -180,10 +170,8 @@ public class BatchPersistenceService(
     private string CreateJsonContent(List<ReceivedMessageModel> messages)
     {
         var jsonArray = messages.Select(m => m.Payload).ToList();
-        return JsonSerializer.Serialize(jsonArray, new JsonSerializerOptions
-        {
-            WriteIndented = false
-        });
+
+        return JsonSerializer.Serialize(jsonArray, JsonSerializerOptions);
     }
 
     private void MarkMessagesAsSuccessful(List<ReceivedMessageModel> messages)
@@ -228,5 +216,5 @@ public class BatchPersistenceService(
             }
         }
     }
-    private record CollectionMessageGroup(string CollectionName, List<ReceivedMessageModel> Messages);
+    private record CollectionMessageGroup(string CollectionClientId, List<ReceivedMessageModel> Messages);
 }

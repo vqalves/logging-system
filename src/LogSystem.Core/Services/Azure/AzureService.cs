@@ -19,14 +19,14 @@ public class AzureService
         AzureConfig = azureConfig;
     }
 
-    public async Task UploadFileAsync(long logCollectionId, string fileName, TimeSpan fileDuration, string content)
+    public async Task UploadFileAsync(string collectionName, string fileName, string content)
     {
         // Initialize BlobServiceClient using AzureConfig connection string
         var blobServiceClient = new BlobServiceClient(AzureConfig.ConnectionString);
         var containerClient = blobServiceClient.GetBlobContainerClient(AzureConfig.ContainerName);
 
-        // Get reference to blob at path /logs/v1/{logCollectionId}/{fileName}
-        var blobPath = $"logs/v1/{logCollectionId}/{fileName}";
+        // Get reference to blob at path /logs/v1/{collectionName}/{fileName}
+        var blobPath = $"logs/v1/{collectionName}/{fileName}.gzip";
         var blobClient = containerClient.GetBlobClient(blobPath);
 
         // Compress content using GZipStream to byte array
@@ -34,20 +34,12 @@ public class AzureService
         using (var outputStream = new MemoryStream())
         {
             using (var gzipStream = new GZipStream(outputStream, CompressionMode.Compress, leaveOpen: true))
+
             using (var writer = new StreamWriter(gzipStream))
-            {
                 await writer.WriteAsync(content);
-            }
+
             compressedContent = outputStream.ToArray();
         }
-
-        // Set blob metadata with TTL expiration based on fileDuration parameter
-        // var expirationUtc = DateTime.UtcNow.Add(fileDuration);
-        // var metadata = new Dictionary<string, string>
-        // {
-        //     { "ExpirationUtc", expirationUtc.ToString("o") }, // ISO 8601 format
-        //     { "TTLHours", fileDuration.TotalHours.ToString("F2") }
-        // };
 
         // Upload compressed content to blob with metadata
         // BlobUploadOptions allows overwriting existing blobs
@@ -64,9 +56,7 @@ public class AzureService
         try
         {
             using (var contentStream = new MemoryStream(compressedContent))
-            {
                 await blobClient.UploadAsync(contentStream, uploadOptions);
-            }
         }
         catch (RequestFailedException ex) when (ex.ErrorCode == "ContainerNotFound")
         {
@@ -74,19 +64,11 @@ public class AzureService
             await containerClient.CreateIfNotExistsAsync();
 
             using (var contentStream = new MemoryStream(compressedContent))
-            {
                 await blobClient.UploadAsync(contentStream, uploadOptions);
-            }
         }
     }
 
-    /// <summary>
-    /// Creates a lifecycle management policy for a specific log collection.
-    /// Files in the collection folder will be deleted after the specified duration.
-    /// </summary>
-    /// <param name="logCollectionId">The ID of the log collection</param>
-    /// <param name="retentionHours">Number of hours to retain files before deletion</param>
-    public async Task CreateLifecyclePolicyAsync(long logCollectionId, long retentionHours)
+    public async Task CreateLifecyclePolicyAsync(string collectionName, long retentionHours)
     {
         var armClient = GetArmClient();
         var storageAccount = await GetStorageAccountAsync(armClient);
@@ -94,13 +76,13 @@ public class AzureService
         var managementPolicy = await GetOrCreateManagementPolicyAsync(storageAccount);
         var policyData = managementPolicy.Data;
 
-        // Create rule name: logcollection-{logCollectionId}-lifecycle
-        var ruleName = $"logcollection-{logCollectionId}-lifecycle";
+        // Create rule name: logcollection-{collectionName}-lifecycle
+        var ruleName = $"logcollection-{collectionName}-lifecycle";
 
         // Check if rule already exists
         if (policyData.Rules.Any(r => r.Name == ruleName))
         {
-            throw new InvalidOperationException($"Lifecycle policy for log collection {logCollectionId} already exists.");
+            throw new InvalidOperationException($"Lifecycle policy for log collection {collectionName} already exists.");
         }
 
         // Create new rule for this collection
@@ -117,7 +99,7 @@ public class AzureService
         {
             Filters = new ManagementPolicyFilter(new[] { "blockBlob" })
             {
-                PrefixMatch = { $"logs/v1/{logCollectionId}/" }
+                PrefixMatch = { $"logs/v1/{collectionName}/" }
             }
         };
 
@@ -132,12 +114,7 @@ public class AzureService
         await storageAccount.GetStorageAccountManagementPolicy().CreateOrUpdateAsync(WaitUntil.Completed, policyData);
     }
 
-    /// <summary>
-    /// Updates the lifecycle management policy for a specific log collection.
-    /// </summary>
-    /// <param name="logCollectionId">The ID of the log collection</param>
-    /// <param name="retentionHours">New number of hours to retain files before deletion</param>
-    public async Task UpdateLifecyclePolicyAsync(long logCollectionId, long retentionHours)
+    public async Task UpdateLifecyclePolicyAsync(string collectionName, long retentionHours)
     {
         var armClient = GetArmClient();
         var storageAccount = await GetStorageAccountAsync(armClient);
@@ -145,13 +122,13 @@ public class AzureService
         var managementPolicy = await GetOrCreateManagementPolicyAsync(storageAccount);
         var policyData = managementPolicy.Data;
 
-        var ruleName = $"logcollection-{logCollectionId}-lifecycle";
+        var ruleName = $"logcollection-{collectionName}-lifecycle";
 
         // Find the existing rule
         var existingRule = policyData.Rules.FirstOrDefault(r => r.Name == ruleName);
         if (existingRule == null)
         {
-            throw new InvalidOperationException($"Lifecycle policy for log collection {logCollectionId} does not exist.");
+            throw new InvalidOperationException($"Lifecycle policy for log collection {collectionName} does not exist.");
         }
 
         // Update the retention period
@@ -164,11 +141,7 @@ public class AzureService
         await storageAccount.GetStorageAccountManagementPolicy().CreateOrUpdateAsync(WaitUntil.Completed, policyData);
     }
 
-    /// <summary>
-    /// Deletes the lifecycle management policy for a specific log collection.
-    /// </summary>
-    /// <param name="logCollectionId">The ID of the log collection</param>
-    public async Task DeleteLifecyclePolicyAsync(long logCollectionId)
+    public async Task DeleteLifecyclePolicyAsync(string collectionName)
     {
         var armClient = GetArmClient();
         var storageAccount = await GetStorageAccountAsync(armClient);
@@ -176,13 +149,13 @@ public class AzureService
         var managementPolicy = await GetOrCreateManagementPolicyAsync(storageAccount);
         var policyData = managementPolicy.Data;
 
-        var ruleName = $"logcollection-{logCollectionId}-lifecycle";
+        var ruleName = $"logcollection-{collectionName}-lifecycle";
 
         // Find and remove the rule
         var existingRule = policyData.Rules.FirstOrDefault(r => r.Name == ruleName);
         if (existingRule == null)
         {
-            throw new InvalidOperationException($"Lifecycle policy for log collection {logCollectionId} does not exist.");
+            throw new InvalidOperationException($"Lifecycle policy for log collection {collectionName} does not exist.");
         }
 
         policyData.Rules.Remove(existingRule);
@@ -244,14 +217,14 @@ public class AzureService
         }
     }
 
-    public async Task<DownloadedFile> DownloadFileAsync(long logCollectionId, string fileName)
+    public async Task<DownloadedFile> DownloadFileAsync(string collectionName, string fileName)
     {
         // Initialize BlobServiceClient using AzureConfig connection string
         var blobServiceClient = new BlobServiceClient(AzureConfig.ConnectionString);
         var containerClient = blobServiceClient.GetBlobContainerClient(AzureConfig.ContainerName);
 
-        // Get reference to blob at path /logs/v1/{logCollectionId}/{fileName}
-        var blobPath = $"logs/v1/{logCollectionId}/{fileName}";
+        // Get reference to blob at path /logs/v1/{collectionName}/{fileName}
+        var blobPath = $"logs/v1/{collectionName}/{fileName}";
         var blobClient = containerClient.GetBlobClient(blobPath);
 
         try

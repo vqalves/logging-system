@@ -10,11 +10,13 @@ public class LogCollectionCache
     private readonly DatabaseService DatabaseService;
     private readonly ConcurrentDictionary<string, CacheEntry<LogCollection>> Cache = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> LoadLocks = new();
+    private readonly LogSystemConfig LogSystemConfig;
 
-    public LogCollectionCache(TimeSpan cacheDuration, DatabaseService databaseService)
+    public LogCollectionCache(TimeSpan cacheDuration, DatabaseService databaseService, LogSystemConfig logSystemConfig)
     {
         CacheDuration = cacheDuration;
         DatabaseService = databaseService;
+        LogSystemConfig = logSystemConfig;
     }
 
     private string GenerateCacheKey(string clientId)
@@ -27,7 +29,7 @@ public class LogCollectionCache
         return DateTime.UtcNow - entry.CreatedAt > CacheDuration;
     }
 
-    public async Task<LogCollection> GetByClientIdAsync(string clientId, Func<Task<LogCollection>> onNotFound)
+    public async Task<LogCollection> GetOrCreateByClientIdAsync(string clientId)
     {
         var cacheKey = GenerateCacheKey(clientId);
 
@@ -51,7 +53,7 @@ public class LogCollectionCache
 
             // If not found in database, execute the onNotFound callback
             if (logCollection == null)
-                logCollection = await onNotFound();
+                logCollection = await CreateLogCollectionAsync(clientId);
 
             // Create new cache entry with creation timestamp
             var newEntry = new CacheEntry<LogCollection>
@@ -68,6 +70,52 @@ public class LogCollectionCache
         {
             loadLock.Release();
         }
+    }
+
+    private async Task<LogCollection> CreateLogCollectionAsync(string collectionName)
+    {
+        // Create new LogCollection
+        var newLogCollection = new LogCollection(
+            name: collectionName,
+            clientId: collectionName,
+            tableName: $"{collectionName}",
+            logDurationHours: LogSystemConfig.DefaultLogDurationHours);
+
+        // Save to database
+        await DatabaseService.SaveLogCollectionAsync(newLogCollection); 
+
+        // Timestamp
+        var timestampAttribute = new LogAttribute(
+            logCollectionID: newLogCollection.ID,
+            name: "Timestamp",
+            sqlColumnName: "Timestamp",
+            attributeTypeID: AttributeType.DateTime.Value,
+            extractionStyleID: ExtractionStyle.JSON.Value,
+            extractionExpression: "$.Timestamp");
+
+        await DatabaseService.CreateAttributeAsync(newLogCollection, timestampAttribute);
+
+        var logLevelAttribute = new LogAttribute(
+            logCollectionID: newLogCollection.ID,
+            name: "Log Level",
+            sqlColumnName: "LogLevel",
+            attributeTypeID: AttributeType.Text.Value,
+            extractionStyleID: ExtractionStyle.JSON.Value,
+            extractionExpression: "$.Level");
+
+        await DatabaseService.CreateAttributeAsync(newLogCollection, logLevelAttribute);
+
+        var exceptionAttribute = new LogAttribute(
+            logCollectionID: newLogCollection.ID,
+            name: "Exception",
+            sqlColumnName: "Exception",
+            attributeTypeID: AttributeType.Text.Value,
+            extractionStyleID: ExtractionStyle.JSON.Value,
+            extractionExpression: "$.Exception.Message");
+
+        await DatabaseService.CreateAttributeAsync(newLogCollection, exceptionAttribute);
+
+        return newLogCollection;
     }
 
     public void InvalidateCache(LogCollection? logCollection)

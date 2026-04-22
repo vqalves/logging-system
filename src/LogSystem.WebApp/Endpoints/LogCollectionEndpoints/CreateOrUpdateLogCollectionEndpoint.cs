@@ -1,8 +1,9 @@
+using LogSystem.Core.Services.Azure;
 using LogSystem.Core.Services.Database;
 using LogSystem.WebApp.BackgroundServices.Persistence;
 using Microsoft.AspNetCore.Mvc;
 
-namespace LogSystem.WebApp.Endpoints.LogCollection;
+namespace LogSystem.WebApp.Endpoints.LogCollectionEndpoints;
 
 public static class CreateOrUpdateLogCollectionEndpoint
 {
@@ -15,7 +16,8 @@ public static class CreateOrUpdateLogCollectionEndpoint
         app.MapPost(Route, async (
             [FromBody] Request request,
             [FromServices] DatabaseService databaseService,
-            [FromServices] LogCollectionCache cache) =>
+            [FromServices] LogCollectionCache cache,
+            [FromServices] AzureService azureService) =>
         {
             var validationErrors = await ValidateAsync(request, databaseService);
 
@@ -25,11 +27,14 @@ public static class CreateOrUpdateLogCollectionEndpoint
             try
             {
                 Core.Services.Database.LogCollection logCollection;
+                bool isNewCollection = false;
+                bool retentionChanged = false;
 
                 if (request.ID == null || request.ID == 0)
                 {
                     // Create new collection
-                    logCollection = new Core.Services.Database.LogCollection(request.Name!, request.ClientId!, request.TableName!, request.LogDurationHours!.Value);
+                    logCollection = new LogCollection(request.Name!, request.ClientId!, request.TableName!, request.LogDurationHours!.Value);
+                    isNewCollection = true;
                 }
                 else
                 {
@@ -39,6 +44,8 @@ public static class CreateOrUpdateLogCollectionEndpoint
                     if (existing == null)
                         return Results.NotFound(new { message = "LogCollection not found." });
 
+                    retentionChanged = existing.LogDurationHours != request.LogDurationHours!.Value;
+
                     logCollection = existing;
                     logCollection.Name = request.Name!;
                     logCollection.ClientId = request.ClientId!;
@@ -46,6 +53,16 @@ public static class CreateOrUpdateLogCollectionEndpoint
                 }
 
                 await databaseService.SaveLogCollectionAsync(logCollection);
+
+                // Create or update Azure lifecycle policy
+                if (isNewCollection)
+                {
+                    await azureService.CreateLifecyclePolicyAsync(logCollection.TableName, logCollection.LogDurationHours);
+                }
+                else if (retentionChanged)
+                {
+                    await azureService.UpdateLifecyclePolicyAsync(logCollection.TableName, logCollection.LogDurationHours);
+                }
 
                 // Invalidate cache
                 cache.InvalidateCache(logCollection);
