@@ -1,5 +1,6 @@
 using LogSystem.Core.Services.Azure;
 using LogSystem.Core.Services.Database;
+using Microsoft.VisualBasic;
 using RabbitMQ.Client;
 using System.Text.Json;
 using System.Threading.Channels;
@@ -35,6 +36,8 @@ public class BatchPersistenceService(
             await ProcessBatchAsync(messagesPerCollectionName, logCollectionCache, batchStartTime);
 
             await HandleMessageAcknowledgmentsAsync(messages);
+
+            // TODO: Implement Dispose on all processed messages, to Dispose of JsonDocument (if created)
         }
     }
 

@@ -130,7 +130,7 @@ public class LogDataService
         using var command = new SqlCommand(sql, connection);
         command.Parameters.AddRange(parameters.ToArray());
 
-        using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess);
+        using var reader = await command.ExecuteReaderAsync();
 
         // Map column indices for dynamic columns
         var dynamicColumnIndices = new Dictionary<string, int>();

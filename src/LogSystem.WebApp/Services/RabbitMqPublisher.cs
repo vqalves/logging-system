@@ -4,46 +4,53 @@ namespace LogSystem.WebApp.Services;
 
 public class RabbitMqPublisher : IAsyncDisposable, IDisposable
 {
-    private readonly IConnection _connection;
-    private readonly IChannel _channel;
     private readonly PublishServiceConfig _config;
     private readonly ILogger<RabbitMqPublisher> _logger;
-    private bool _disposed;
+    private readonly SemaphoreSlim _initializationLock = new(1, 1);
 
-    private RabbitMqPublisher(
-        IConnection connection,
-        IChannel channel,
+    private IConnection? _connection;
+    private IChannel? _channel;
+    private bool _disposed;
+    private bool _initialized;
+
+    public RabbitMqPublisher(
         PublishServiceConfig config,
         ILogger<RabbitMqPublisher> logger)
     {
-        _connection = connection;
-        _channel = channel;
         _config = config;
         _logger = logger;
     }
 
-    public static async Task<RabbitMqPublisher> CreateAsync(
-        PublishServiceConfig config,
-        ILogger<RabbitMqPublisher> logger)
+    private async Task EnsureInitializedAsync()
     {
+        if (_initialized)
+            return;
+
+        await _initializationLock.WaitAsync();
         try
         {
+            if (_initialized)
+                return;
+
             var factory = new ConnectionFactory
             {
-                Uri = new Uri(config.RabbitMqConnectionString)
+                Uri = new Uri(_config.RabbitMqConnectionString)
             };
 
-            var connection = await factory.CreateConnectionAsync();
-            var channel = await connection.CreateChannelAsync();
+            _connection = await factory.CreateConnectionAsync();
+            _channel = await _connection.CreateChannelAsync();
 
-            logger.LogInformation("RabbitMqPublisher initialized successfully");
-
-            return new RabbitMqPublisher(connection, channel, config, logger);
+            _initialized = true;
+            _logger.LogInformation("RabbitMqPublisher initialized successfully");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to initialize RabbitMqPublisher");
+            _logger.LogError(ex, "Failed to initialize RabbitMqPublisher");
             throw;
+        }
+        finally
+        {
+            _initializationLock.Release();
         }
     }
 
@@ -51,9 +58,11 @@ public class RabbitMqPublisher : IAsyncDisposable, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        await EnsureInitializedAsync();
+
         try
         {
-            await _channel.BasicPublishAsync(
+            await _channel!.BasicPublishAsync(
                 exchange: exchange,
                 routingKey: routingKey,
                 body: message);
@@ -72,6 +81,7 @@ public class RabbitMqPublisher : IAsyncDisposable, IDisposable
 
         _channel?.Dispose();
         _connection?.Dispose();
+        _initializationLock.Dispose();
         _disposed = true;
 
         GC.SuppressFinalize(this);
@@ -89,6 +99,7 @@ public class RabbitMqPublisher : IAsyncDisposable, IDisposable
         if (_connection != null)
             await _connection.DisposeAsync();
 
+        _initializationLock.Dispose();
         _disposed = true;
         GC.SuppressFinalize(this);
 

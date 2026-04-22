@@ -192,7 +192,7 @@ public class LogAttributeService
         using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@LogCollectionID", logCollection.ID);
 
-        using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess);
+        using var reader = await command.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
         {

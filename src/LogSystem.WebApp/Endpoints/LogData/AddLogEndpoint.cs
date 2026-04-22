@@ -2,11 +2,11 @@ using LogSystem.WebApp.Services;
 
 namespace LogSystem.WebApp.Endpoints.LogData;
 
-public static class AddLogAttributeEndpoint
+public static class AddLogEndpoint
 {
-    private const string Route = "/Log/AddLogAttribute";
+    private const string Route = "/api/log/add";
 
-    public static string UrlForAddLogAttribute() => Route;
+    public static string UrlForAddLog() => Route;
 
     public static void MapEndpoint(IEndpointRouteBuilder app)
     {

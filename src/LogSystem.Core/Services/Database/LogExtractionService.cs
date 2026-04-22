@@ -18,47 +18,39 @@ public class LogExtractionService
         JsonDocument? jsonDocument = null;
         bool needsJsonParsing = attributes.Any(a => a.HasExtractionStyle(ExtractionStyle.JSON));
 
-        try
-        {
-            if (needsJsonParsing)
-                jsonDocument = contentAsJsonDocument();
+        if (needsJsonParsing)
+            jsonDocument = contentAsJsonDocument();
 
-            // Iterate through attributes and extract values
-            foreach (var attribute in attributes)
+        // Iterate through attributes and extract values
+        foreach (var attribute in attributes)
+        {
+            object? extractedValue = null;
+
+            try
             {
-                object? extractedValue = null;
+                // Determine extraction style and delegate to appropriate method
+                if (attribute.HasExtractionStyle(ExtractionStyle.JSON))
+                    if (jsonDocument is not null)
+                        extractedValue = ExtractionStyle.JSON.Extract(jsonDocument, attribute.ExtractionExpression);
 
-                try
+                // Future extraction styles (regex, xpath, etc.) can be added here
+
+                // Handle type conversion based on AttributeType
+                if (extractedValue != null)
                 {
-                    // Determine extraction style and delegate to appropriate method
-                    if (attribute.HasExtractionStyle(ExtractionStyle.JSON))
-                        if (jsonDocument is not null)
-                            extractedValue = ExtractionStyle.JSON.Extract(jsonDocument, attribute.ExtractionExpression);
-
-                    // Future extraction styles (regex, xpath, etc.) can be added here
-
-                    // Handle type conversion based on AttributeType
-                    if (extractedValue != null)
-                    {
-                        var attributeType = attribute.GetAttributeType();
-                        extractedValue = ConvertToAttributeType(extractedValue, attributeType);
-                    }
-
-                    // Populate Log.Attributes dictionary with SqlColumnName as key
-                    log.Attributes[attribute.SqlColumnName] = extractedValue!;
+                    var attributeType = attribute.GetAttributeType();
+                    extractedValue = ConvertToAttributeType(extractedValue, attributeType);
                 }
-                catch (Exception)
-                {
-                    // Log extraction failure gracefully - set attribute to null
-                    // In production, consider logging the exception for debugging
-                    log.Attributes[attribute.SqlColumnName] = null!;
-                }
+
+                // Populate Log.Attributes dictionary with SqlColumnName as key
+                log.Attributes[attribute.SqlColumnName] = extractedValue!;
             }
-        }
-        finally
-        {
-            // Ensure JsonDocument is properly disposed
-            jsonDocument?.Dispose();
+            catch (Exception)
+            {
+                // Log extraction failure gracefully - set attribute to null
+                // In production, consider logging the exception for debugging
+                log.Attributes[attribute.SqlColumnName] = null!;
+            }
         }
 
         return log;

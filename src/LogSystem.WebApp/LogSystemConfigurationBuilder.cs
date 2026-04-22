@@ -5,6 +5,7 @@ using LogSystem.WebApp.BackgroundServices.Persistence;
 using LogSystem.WebApp.BackgroundServices.Cleanup;
 using LogSystem.WebApp.Services;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace LogSystem.WebApp;
 
@@ -20,6 +21,8 @@ public class LogSystemConfigurationBuilder
         if (!string.IsNullOrEmpty(localConfigPath) && File.Exists(localConfigPath))
         {
             var localJson = File.ReadAllText(localConfigPath);
+            localJson = Regex.Replace(localJson, @"\n\s+//[^\n]*", string.Empty, RegexOptions.Compiled);
+
             LocalConfig = JsonSerializer.Deserialize<Dictionary<string, string>>(localJson);
         }
     }

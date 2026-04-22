@@ -96,6 +96,6 @@ GetLogAttributesByCollectionEndpoint.MapEndpoint(app);
 DeleteLogAttributeEndpoint.MapEndpoint(app);
 
 // Register Log endpoints
-AddLogAttributeEndpoint.MapEndpoint(app);
+AddLogEndpoint.MapEndpoint(app);
 
 app.Run();
