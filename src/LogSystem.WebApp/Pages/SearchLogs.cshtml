@@ -1,0 +1,552 @@
+@page
+@model LogSystem.WebApp.Pages.SearchLogsModel
+@{
+    ViewData["Title"] = "Search Logs";
+}
+
+<h1>@ViewData["Title"]</h1>
+<p id="collection-name" class="text-muted">Loading collection information...</p>
+
+<div id="error-message" class="alert alert-danger" style="display: none;"></div>
+<div id="success-message" class="alert alert-success" style="display: none;"></div>
+
+<!-- Filters Section -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Filters</h5>
+    </div>
+    <div class="card-body">
+        <div id="filters-container">
+            <p class="text-muted">Loading attributes...</p>
+        </div>
+        <div class="mt-3">
+            <button id="add-filter-btn" class="btn btn-sm btn-secondary" style="display: none;">Add Filter</button>
+            <button id="search-btn" class="btn btn-primary" style="display: none;">Search</button>
+            <button id="clear-filters-btn" class="btn btn-outline-secondary" style="display: none;">Clear All Filters</button>
+        </div>
+    </div>
+</div>
+
+<!-- Results Section -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Results</h5>
+    </div>
+    <div class="card-body">
+        <div id="results-container">
+            <p class="text-muted">Apply filters and click Search to view results.</p>
+        </div>
+        <div id="load-more-container" class="text-center mt-3" style="display: none;">
+            <button id="load-more-btn" class="btn btn-outline-primary">Load More</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let logCollectionId = @Model.LogCollectionId;
+        let attributes = [];
+        let filters = [];
+        let logs = [];
+        let nextLastId = null;
+        let isLoading = false;
+
+        // DateTime mask function for dd/MM/yyyy HH:mm format
+        function applyDateTimeMask(input) {
+            input.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+                let formatted = '';
+
+                // Format as dd/MM/yyyy HH:mm
+                if (value.length > 0) {
+                    formatted = value.substring(0, 2); // dd
+                }
+                if (value.length >= 3) {
+                    formatted += '/' + value.substring(2, 4); // MM
+                }
+                if (value.length >= 5) {
+                    formatted += '/' + value.substring(4, 8); // yyyy
+                }
+                if (value.length >= 9) {
+                    formatted += ' ' + value.substring(8, 10); // HH
+                }
+                if (value.length >= 11) {
+                    formatted += ':' + value.substring(10, 12); // mm
+                }
+
+                e.target.value = formatted;
+            });
+
+            input.addEventListener('keydown', function(e) {
+                // Allow: backspace, delete, tab, escape, enter
+                if ([46, 8, 9, 27, 13].indexOf(e.keyCode) !== -1 ||
+                    // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                    (e.keyCode === 65 && e.ctrlKey === true) ||
+                    (e.keyCode === 67 && e.ctrlKey === true) ||
+                    (e.keyCode === 86 && e.ctrlKey === true) ||
+                    (e.keyCode === 88 && e.ctrlKey === true) ||
+                    // Allow: home, end, left, right
+                    (e.keyCode >= 35 && e.keyCode <= 39)) {
+                    return;
+                }
+                // Ensure that it is a number and stop the keypress
+                if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+                    e.preventDefault();
+                }
+                // Limit to 16 characters (dd/MM/yyyy HH:mm)
+                if (e.target.value.replace(/\D/g, '').length >= 12) {
+                    e.preventDefault();
+                }
+            });
+        }
+
+        // Convert dd/MM/yyyy HH:mm to ISO format (UTC)
+        function dateTimeToISO(dateTimeStr) {
+            if (!dateTimeStr || dateTimeStr.trim() === '') return null;
+
+            const match = dateTimeStr.match(/^(\d{2})\/(\d{2})\/(\d{4})\s(\d{2}):(\d{2})$/);
+            if (!match) return null;
+
+            const [, day, month, year, hour, minute] = match;
+
+            // Create ISO format: yyyy-MM-ddTHH:mm:ss
+            return `${year}-${month}-${day}T${hour}:${minute}:00`;
+        }
+
+        // Format ISO datetime to dd/MM/yyyy HH:mm
+        function formatDateTime(isoString) {
+            if (!isoString) return '';
+
+            const date = new Date(isoString);
+            if (isNaN(date.getTime())) return isoString;
+
+            const day = String(date.getUTCDate()).padStart(2, '0');
+            const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+            const year = date.getUTCFullYear();
+            const hours = String(date.getUTCHours()).padStart(2, '0');
+            const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+
+            return `${day}/${month}/${year} ${hours}:${minutes}`;
+        }
+
+        const operatorsByType = {
+            'text': [
+                { value: '=', name: 'Equal' },
+                { value: '!=', name: 'Not Equal' },
+                { value: 'CONTAINS', name: 'Contains' },
+                { value: 'STARTSWITH', name: 'Starts With' },
+                { value: 'ENDSWITH', name: 'Ends With' },
+                { value: 'ISNULL', name: 'Is Null' },
+                { value: 'ISNOTNULL', name: 'Is Not Null' }
+            ],
+            'integer': [
+                { value: '=', name: 'Equal' },
+                { value: '!=', name: 'Not Equal' },
+                { value: '<', name: 'Less Than' },
+                { value: '<=', name: 'Less Than or Equal' },
+                { value: '>', name: 'Greater Than' },
+                { value: '>=', name: 'Greater Than or Equal' },
+                { value: 'ISNULL', name: 'Is Null' },
+                { value: 'ISNOTNULL', name: 'Is Not Null' }
+            ],
+            'decimal': [
+                { value: '=', name: 'Equal' },
+                { value: '!=', name: 'Not Equal' },
+                { value: '<', name: 'Less Than' },
+                { value: '<=', name: 'Less Than or Equal' },
+                { value: '>', name: 'Greater Than' },
+                { value: '>=', name: 'Greater Than or Equal' },
+                { value: 'ISNULL', name: 'Is Null' },
+                { value: 'ISNOTNULL', name: 'Is Not Null' }
+            ],
+            'datetime': [
+                { value: '=', name: 'Equal' },
+                { value: '!=', name: 'Not Equal' },
+                { value: '<', name: 'Before' },
+                { value: '<=', name: 'Before or Equal' },
+                { value: '>', name: 'After' },
+                { value: '>=', name: 'After or Equal' },
+                { value: 'ISNULL', name: 'Is Null' },
+                { value: 'ISNOTNULL', name: 'Is Not Null' }
+            ],
+            'boolean': [
+                { value: '=', name: 'Equal' },
+                { value: 'ISNULL', name: 'Is Null' },
+                { value: 'ISNOTNULL', name: 'Is Not Null' }
+            ]
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCollectionInfo();
+        });
+
+        async function loadCollectionInfo() {
+            try {
+                const response = await fetch(`/api/log-collections/${logCollectionId}/log-attributes`);
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load collection: ${response.statusText}`);
+                }
+
+                const attributesData = await response.json();
+                attributes = attributesData;
+
+                // Update collection name (fetch from collections endpoint)
+                const collectionResponse = await fetch('/api/log-collections');
+                if (collectionResponse.ok) {
+                    const collections = await collectionResponse.json();
+                    const collection = collections.find(c => c.id === logCollectionId);
+                    if (collection) {
+                        document.getElementById('collection-name').textContent = `Collection: ${escapeHtml(collection.name)} (${escapeHtml(collection.tableName)})`;
+                    }
+                }
+
+                renderFilters();
+                document.getElementById('add-filter-btn').style.display = 'inline-block';
+                document.getElementById('search-btn').style.display = 'inline-block';
+                document.getElementById('clear-filters-btn').style.display = 'inline-block';
+
+            } catch (error) {
+                console.error('Error loading collection:', error);
+                showError('Failed to load collection: ' + error.message);
+            }
+        }
+
+        function updateFilterAttribute(index, newAttributeId) {
+            filters[index].attributeId = newAttributeId;
+            // Reset operator and value when attribute changes
+            const selectedAttr = attributes.find(a => a.id == newAttributeId);
+            const operators = operatorsByType[selectedAttr.attributeTypeID] || operatorsByType['text'];
+            filters[index].operator = operators[0].value;
+            filters[index].value = '';
+            renderFilters();
+        }
+
+        function updateFilterOperator(index, newOperator) {
+            filters[index].operator = newOperator;
+            // Clear value for null operators
+            if (newOperator === 'ISNULL' || newOperator === 'ISNOTNULL') {
+                filters[index].value = '';
+            }
+            renderFilters();
+        }
+
+        function updateFilterValue(index, newValue) {
+            filters[index].value = newValue;
+            // No render needed - just update the array
+        }
+
+        function renderFilters() {
+            const container = document.getElementById('filters-container');
+
+            if (attributes.length === 0) {
+                container.innerHTML = '<p class="text-muted">No attributes defined for this collection. Please add attributes first.</p>';
+                return;
+            }
+
+            if (filters.length === 0) {
+                container.innerHTML = '<p class="text-muted">No filters applied. Click "Add Filter" to add one.</p>';
+                return;
+            }
+
+            // Create table structure
+            let tableHtml = '<table class="table"><thead><tr>';
+            tableHtml += '<th>Attribute</th>';
+            tableHtml += '<th>Operator</th>';
+            tableHtml += '<th>Value</th>';
+            tableHtml += '<th></th>';
+            tableHtml += '</tr></thead><tbody>';
+
+            filters.forEach((filter, index) => {
+                const selectedAttr = attributes.find(a => a.id == filter.attributeId);
+                const operators = operatorsByType[selectedAttr.attributeTypeID] || operatorsByType['text'];
+
+                // Determine input type and properties based on attribute type
+                let inputType = 'text';
+                let inputStep = '';
+                let inputDisabled = false;
+                let inputValue = filter.value || '';
+                let inputPlaceholder = 'Enter value';
+
+                if (selectedAttr.attributeTypeID === 'datetime') {
+                    inputType = 'text';
+                    inputPlaceholder = 'dd/MM/yyyy HH:mm';
+                } else if (selectedAttr.attributeTypeID === 'integer') {
+                    inputType = 'number';
+                } else if (selectedAttr.attributeTypeID === 'decimal') {
+                    inputType = 'number';
+                    inputStep = '0.0001';
+                }
+
+                // Disable value input for null operators
+                if (filter.operator === 'ISNULL' || filter.operator === 'ISNOTNULL') {
+                    inputDisabled = true;
+                    inputValue = '';
+                }
+
+                tableHtml += '<tr>';
+                tableHtml += `<td><select class="form-select" id="filter-attribute-${index}">
+                    ${attributes.map(attr => `<option value="${attr.id}" ${filter.attributeId === attr.id ? 'selected' : ''}>${escapeHtml(attr.name)}</option>`).join('')}
+                </select></td>`;
+                tableHtml += `<td><select class="form-select" id="filter-operator-${index}">
+                    ${operators.map(op => `<option value="${op.value}" ${filter.operator === op.value ? 'selected' : ''}>${escapeHtml(op.name)}</option>`).join('')}
+                </select></td>`;
+                tableHtml += `<td><input type="${inputType}" ${inputStep ? `step="${inputStep}"` : ''} class="form-control" id="filter-value-${index}" value="${escapeHtml(inputValue)}" placeholder="${inputPlaceholder}" ${inputDisabled ? 'disabled' : ''} data-attr-type="${selectedAttr.attributeTypeID}"></td>`;
+                tableHtml += `<td><button class="btn btn-danger btn-sm" onclick="removeFilter(${index})">Remove</button></td>`;
+                tableHtml += '</tr>';
+            });
+
+            tableHtml += '</tbody></table>';
+            container.innerHTML = tableHtml;
+
+            // Add change event listeners
+            filters.forEach((filter, index) => {
+                const attributeSelect = document.getElementById(`filter-attribute-${index}`);
+                const operatorSelect = document.getElementById(`filter-operator-${index}`);
+                const valueInput = document.getElementById(`filter-value-${index}`);
+
+                attributeSelect.addEventListener('change', (e) => {
+                    updateFilterAttribute(index, parseInt(e.target.value));
+                });
+
+                operatorSelect.addEventListener('change', (e) => {
+                    updateFilterOperator(index, e.target.value);
+                });
+
+                // Apply datetime mask if applicable
+                if (valueInput.dataset.attrType === 'datetime') {
+                    applyDateTimeMask(valueInput);
+                }
+
+                valueInput.addEventListener('input', (e) => {
+                    updateFilterValue(index, e.target.value);
+                });
+            });
+        }
+
+        function addFilter() {
+            if (attributes.length === 0) {
+                showError('No attributes available to filter on.');
+                return;
+            }
+
+            filters.push({
+                attributeId: attributes[0].id,
+                operator: '=',
+                value: ''
+            });
+
+            renderFilters();
+        }
+
+        function removeFilter(index) {
+            filters.splice(index, 1);
+            renderFilters();
+        }
+
+        function clearFilters() {
+            filters = [];
+            renderFilters();
+        }
+
+        async function search(loadMore = false) {
+            if (isLoading) return;
+
+            isLoading = true;
+            const searchBtn = document.getElementById('search-btn');
+            const loadMoreBtn = document.getElementById('load-more-btn');
+
+            if (!loadMore) {
+                hideError(); // Hide error when starting a new search
+                searchBtn.disabled = true;
+                searchBtn.textContent = 'Searching...';
+                logs = [];
+                nextLastId = null;
+            } else {
+                loadMoreBtn.disabled = true;
+                loadMoreBtn.textContent = 'Loading...';
+            }
+
+            try {
+                // Collect filter values from filters array
+                const requestFilters = [];
+                for (let i = 0; i < filters.length; i++) {
+                    const filter = filters[i];
+                    const attributeId = filter.attributeId;
+                    const operator = filter.operator;
+                    let value = filter.value;
+
+                    // Skip null operators or convert value
+                    if (operator !== 'ISNULL' && operator !== 'ISNOTNULL') {
+                        if (!value && value !== 0 && value !== '0') {
+                            showError(`Please provide a value for filter ${i + 1}`);
+                            return;
+                        }
+
+                        const attribute = attributes.find(a => a.id === attributeId);
+                        if (attribute.attributeTypeID === 'integer') {
+                            value = parseInt(value);
+                        } else if (attribute.attributeTypeID === 'decimal') {
+                            value = parseFloat(value);
+                        } else if (attribute.attributeTypeID === 'datetime') {
+                            // Convert dd/MM/yyyy HH:mm to ISO format
+                            const isoValue = dateTimeToISO(value);
+                            if (!isoValue) {
+                                showError(`Invalid date format for filter ${i + 1}. Expected format: dd/MM/yyyy HH:mm`);
+                                return;
+                            }
+                            value = isoValue;
+                        }
+                    } else {
+                        value = null;
+                    }
+
+                    requestFilters.push({
+                        logAttributeID: attributeId,
+                        operator: operator,
+                        value: value
+                    });
+                }
+
+                const requestBody = {
+                    lastId: loadMore ? nextLastId : null,
+                    limit: 100,
+                    filters: requestFilters
+                };
+
+                const response = await fetch(`/api/log-collections/${logCollectionId}/logs/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || response.statusText);
+                }
+
+                const data = await response.json();
+
+                if (loadMore) {
+                    logs = logs.concat(data.logs);
+                } else {
+                    logs = data.logs;
+                }
+
+                nextLastId = data.nextLastId;
+
+                renderResults(data.attributes);
+
+            } catch (error) {
+                console.error('Error searching logs:', error);
+                showError('Failed to search logs: ' + error.message);
+            } finally {
+                isLoading = false;
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search';
+                loadMoreBtn.disabled = false;
+                loadMoreBtn.textContent = 'Load More';
+            }
+        }
+
+        function renderResults(attributesList) {
+            const container = document.getElementById('results-container');
+            const loadMoreContainer = document.getElementById('load-more-container');
+
+            if (logs.length === 0) {
+                container.innerHTML = '<p class="text-muted">No results found.</p>';
+                loadMoreContainer.style.display = 'none';
+                return;
+            }
+
+            // Build table
+            let tableHtml = '<div class="table-responsive"><table class="table table-striped table-sm">';
+            tableHtml += '<thead><tr>';
+            tableHtml += '<th>ID</th>';
+
+            // Add attribute columns
+            attributesList.forEach(attr => {
+                tableHtml += `<th>${escapeHtml(attr.name)}</th>`;
+            });
+            tableHtml += '<th>Actions</th>';
+
+            tableHtml += '</tr></thead><tbody>';
+
+            logs.forEach(log => {
+                tableHtml += '<tr>';
+                tableHtml += `<td>${log.id}</td>`;
+
+                attributesList.forEach(attr => {
+                    const value = log.attributes[attr.sqlColumnName];
+                    if (value === null || value === undefined) {
+                        tableHtml += '<td class="text-muted"><em>null</em></td>';
+                    } else if (attr.attributeTypeID === 'datetime') {
+                        tableHtml += `<td>${escapeHtml(formatDateTime(value))}</td>`;
+                    } else if (typeof value === 'boolean') {
+                        tableHtml += `<td>${value ? 'true' : 'false'}</td>`;
+                    } else {
+                        tableHtml += `<td>${escapeHtml(String(value))}</td>`;
+                    }
+                });
+
+                // Add download button
+                const downloadUrl = `/api/log-collections/${logCollectionId}/logs/${log.id}/download`;
+                tableHtml += `<td><a href="${downloadUrl}" class="btn btn-sm btn-primary" target="_blank">Download</a></td>`;
+
+                tableHtml += '</tr>';
+            });
+
+            tableHtml += '</tbody></table></div>';
+            tableHtml += `<p class="text-muted mt-2">${logs.length} record(s) loaded</p>`;
+
+            container.innerHTML = tableHtml;
+
+            // Show/hide load more button
+            if (nextLastId) {
+                loadMoreContainer.style.display = 'block';
+            } else {
+                loadMoreContainer.style.display = 'none';
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+
+            document.getElementById('success-message').style.display = 'none';
+        }
+
+        function hideError() {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success-message');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+
+            document.getElementById('error-message').style.display = 'none';
+
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
+
+        // Wire up event handlers
+        document.getElementById('add-filter-btn').addEventListener('click', addFilter);
+        document.getElementById('search-btn').addEventListener('click', () => search(false));
+        document.getElementById('clear-filters-btn').addEventListener('click', clearFilters);
+        document.getElementById('load-more-btn').addEventListener('click', () => search(true));
+    </script>
+}

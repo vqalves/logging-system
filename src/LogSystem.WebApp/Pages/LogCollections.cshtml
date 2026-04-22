@@ -74,6 +74,7 @@
                     <td>
                         <a href="/LogCollections/Manage/${collection.id}" class="btn btn-sm btn-primary">Edit</a>
                         <a href="/LogAttributes/${collection.id}" class="btn btn-sm btn-info">Attributes</a>
+                        <a href="/SearchLogs?LogCollectionId=${collection.id}" class="btn btn-sm btn-success">Search Logs</a>
                         <button class="btn btn-sm btn-danger" onclick="deleteCollection(${collection.id}, '${escapeHtml(collection.name)}')">Delete</button>
                     </td>
                 `;

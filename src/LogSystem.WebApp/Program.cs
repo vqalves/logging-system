@@ -88,5 +88,7 @@ DeleteLogAttributeEndpoint.MapEndpoint(app);
 
 // Register Log endpoints
 AddLogEndpoint.MapEndpoint(app);
+SearchLogsEndpoint.MapEndpoint(app);
+DownloadLogEndpoint.MapEndpoint(app);
 
 app.Run();

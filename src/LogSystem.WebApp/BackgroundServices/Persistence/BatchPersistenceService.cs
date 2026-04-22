@@ -35,7 +35,7 @@ public class BatchPersistenceService(
             var messages = ReadAvailableMessages(messageChannel);
             var messagesPerCollectionName = GroupMessagesByCollection(messages);
 
-            var persistedFileName = $"{batchStartTime:yyyyMMddHHmmss}.json";
+            var persistedFileName = $"{batchStartTime:yyyyMMddHHmmss}.json.gzip";
 
             try
             {

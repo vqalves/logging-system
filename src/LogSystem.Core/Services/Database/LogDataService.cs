@@ -1,15 +1,20 @@
 using System.Data;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 
 namespace LogSystem.Core.Services.Database;
 
 public class LogDataService
 {
     private readonly DatabaseConfig DatabaseConfig;
+    private readonly ILogger<LogDataService> Logger;
 
-    public LogDataService(DatabaseConfig databaseConfig)
+    public LogDataService(
+        DatabaseConfig databaseConfig,
+        ILogger<LogDataService> logger)
     {
         DatabaseConfig = databaseConfig;
+        Logger = logger;
     }
 
     public async Task SaveLogsAsync(LogCollection logCollection, IEnumerable<Log> logs)
@@ -51,7 +56,18 @@ public class LogDataService
         return rowsDeleted;
     }
 
-    public async IAsyncEnumerable<Log> QueryLogsAsync(LogCollection logCollection, IEnumerable<LogAttribute> attributes, IEnumerable<LogFilter> filters)
+    public async Task<Log?> QueryLogAsync(LogCollection logCollection, long id)
+    {
+        return await QueryLogsAsync(
+            logCollection: logCollection,
+            attributes: Array.Empty<LogAttribute>(),
+            filters: Array.Empty<LogFilter>(),
+            id: id,
+            limit: 1
+        ).FirstOrDefaultAsync();
+    }
+
+    public async IAsyncEnumerable<Log> QueryLogsAsync(LogCollection logCollection, IEnumerable<LogAttribute> attributes, IEnumerable<LogFilter> filters, long? id = null, long? lastId = null, int? limit = null)
     {
         // Materialize collections to avoid multiple enumeration
         var attributesList = attributes as IList<LogAttribute> ?? attributes.ToList();
@@ -66,6 +82,14 @@ public class LogDataService
             "[ValidUntilUtc]"
         };
 
+        // Map column indices for dynamic columns
+        var dynamicColumnIndices = new Dictionary<string, int>();
+        for (int i = 0; i < attributesList.Count; i++)
+        {
+            var attribute = attributesList[i];
+            dynamicColumnIndices[attribute.SqlColumnName] = 4 + i;
+        }
+
         // Add dynamic columns from attributes
         foreach (var attribute in attributesList)
             columnNames.Add($"[{attribute.SqlColumnName}]");
@@ -74,6 +98,20 @@ public class LogDataService
         var whereClauses = new List<string>();
         var parameters = new List<SqlParameter>();
         var paramIndex = 0;
+
+        // Add pagination filter (ID < lastId for descending order)
+        if (lastId.HasValue)
+        {
+            whereClauses.Add($"[ID] < @LastId");
+            parameters.Add(new SqlParameter("@LastId", lastId.Value));
+        }
+
+        // Add search for specific ID
+        if (id.HasValue)
+        {
+            whereClauses.Add($"[ID] = @ID");
+            parameters.Add(new SqlParameter("@ID", id.Value));
+        }
 
         foreach (var filter in filtersList)
         {
@@ -118,27 +156,36 @@ public class LogDataService
             }
         }
 
-        // Build final SQL query
-        var sql = $"SELECT {string.Join(", ", columnNames)} FROM [logcollection].[{logCollection.TableName}]";
+        // Build final SQL query with ORDER BY and TOP for pagination
+        string sql;
+        if(limit.HasValue)
+        {
+            sql = "SELECT TOP(@Limit)";
+            parameters.Add(new SqlParameter("@Limit", limit.Value));
+        }
+        else
+        {
+            sql = "SELECT";
+        }
+
+        sql += $" {string.Join(", ", columnNames)} FROM [logcollection].[{logCollection.TableName}]";
+
         if (whereClauses.Count > 0)
             sql += $" WHERE {string.Join(" AND ", whereClauses)}";
+
+        sql += " ORDER BY [ID] DESC";
+
+        Logger.LogDebug("Fetching logs: {sqlQuery}", sql);
 
         // Execute query
         using var connection = new SqlConnection(DatabaseConfig.ConnectionString);
         await connection.OpenAsync();
 
         using var command = new SqlCommand(sql, connection);
+        
         command.Parameters.AddRange(parameters.ToArray());
 
         using var reader = await command.ExecuteReaderAsync();
-
-        // Map column indices for dynamic columns
-        var dynamicColumnIndices = new Dictionary<string, int>();
-        for (int i = 0; i < attributesList.Count; i++)
-        {
-            var attribute = attributesList[i];
-            dynamicColumnIndices[attribute.SqlColumnName] = 4 + i;
-        }
 
         // Read and yield results
         while (await reader.ReadAsync())

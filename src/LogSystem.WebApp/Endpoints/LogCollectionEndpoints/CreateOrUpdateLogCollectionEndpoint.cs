@@ -54,15 +54,8 @@ public static class CreateOrUpdateLogCollectionEndpoint
 
                 await databaseService.SaveLogCollectionAsync(logCollection);
 
-                // Create or update Azure lifecycle policy
-                if (isNewCollection)
-                {
-                    await azureService.CreateLifecyclePolicyAsync(logCollection.TableName, logCollection.LogDurationHours);
-                }
-                else if (retentionChanged)
-                {
-                    await azureService.UpdateLifecyclePolicyAsync(logCollection.TableName, logCollection.LogDurationHours);
-                }
+                if(isNewCollection || retentionChanged)
+                    await azureService.SaveLifecyclePolicyAsync(azureService, logCollection);
 
                 // Invalidate cache
                 cache.InvalidateCache(logCollection);
@@ -82,6 +75,8 @@ public static class CreateOrUpdateLogCollectionEndpoint
             }
         });
     }
+
+    
 
     private static async Task<Dictionary<string, string[]>> ValidateAsync(Request request, DatabaseService databaseService)
     {
