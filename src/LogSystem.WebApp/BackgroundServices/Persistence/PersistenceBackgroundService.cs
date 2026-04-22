@@ -31,18 +31,17 @@ public class PersistenceBackgroundService(
             // Create connection factory
             var factory = new ConnectionFactory
             {
-                Uri = new Uri(persistenceConfig.RabbitMqConnectionString),
-                DispatchConsumersAsync = true
+                Uri = new Uri(persistenceConfig.RabbitMqConnectionString)
             };
 
             // Create connection and channel
-            using var rabbitConnection = factory.CreateConnection();
-            using var rabbitChannel = rabbitConnection.CreateModel();
+            await using var rabbitConnection = await factory.CreateConnectionAsync();
+            await using var rabbitChannel = await rabbitConnection.CreateChannelAsync();
 
             // Create async consumer
             var consumer = new AsyncEventingBasicConsumer(rabbitChannel);
 
-            consumer.Received += async (model, ea) =>
+            consumer.ReceivedAsync += async (model, ea) =>
             {
                 bool success = false;
 
@@ -82,7 +81,7 @@ public class PersistenceBackgroundService(
 
                 if(!success)
                 {
-                    rabbitChannel.BasicNack(
+                    await rabbitChannel.BasicNackAsync(
                         deliveryTag: ea.DeliveryTag,
                         multiple: false,
                         requeue: false);
@@ -90,7 +89,7 @@ public class PersistenceBackgroundService(
             };
 
             // Start consuming
-            rabbitChannel.BasicConsume(
+            await rabbitChannel.BasicConsumeAsync(
                 queue: persistenceConfig.RabbitMqQueueName,
                 autoAck: false, // Manual acknowledgment
                 consumer: consumer);

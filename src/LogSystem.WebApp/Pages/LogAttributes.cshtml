@@ -1,0 +1,186 @@
+@page "{logCollectionId:long?}"
+@model LogSystem.WebApp.Pages.LogAttributesModel
+@{
+    ViewData["Title"] = "Log Attributes";
+}
+
+<h1 id="page-title">@ViewData["Title"]</h1>
+
+<div class="mb-3">
+    <a href="/LogCollections" class="btn btn-secondary">Back to Collections</a>
+    <button id="create-button" class="btn btn-primary" style="display: none;">Create New Attribute</button>
+</div>
+
+<div id="error-message" class="alert alert-danger" style="display: none;"></div>
+<div id="success-message" class="alert alert-success" style="display: none;"></div>
+
+<table class="table table-striped" id="attributes-table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>SQL Column Name</th>
+            <th>Attribute Type</th>
+            <th>Extraction Style</th>
+            <th>Extraction Expression</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr id="loading-row">
+            <td colspan="7" class="text-center">Loading...</td>
+        </tr>
+    </tbody>
+</table>
+
+@section Scripts {
+    <script>
+        const logCollectionId = '@RouteData.Values["logCollectionId"]';
+        let collectionName = '';
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!logCollectionId || logCollectionId === '') {
+                showError('LogCollectionId is required.');
+                document.getElementById('loading-row').innerHTML = '<td colspan="7" class="text-center text-danger">LogCollectionId is required</td>';
+                return;
+            }
+
+            loadLogCollection();
+            loadAttributes();
+        });
+
+        async function loadLogCollection() {
+            try {
+                const response = await fetch('/api/log-collections');
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load collections: ${response.statusText}`);
+                }
+
+                const collections = await response.json();
+                const collection = collections.find(c => c.id == logCollectionId);
+
+                if (!collection) {
+                    showError('LogCollection not found.');
+                    return;
+                }
+
+                collectionName = collection.name;
+                document.getElementById('page-title').textContent = `Log Attributes - ${collectionName}`;
+
+                // Show create button
+                const createButton = document.getElementById('create-button');
+                createButton.style.display = 'inline-block';
+                createButton.onclick = () => window.location.href = `/LogAttributes/Manage?logCollectionId=${logCollectionId}`;
+
+            } catch (error) {
+                console.error('Error loading collection:', error);
+                showError('Failed to load collection: ' + error.message);
+            }
+        }
+
+        async function loadAttributes() {
+            try {
+                const response = await fetch(`/api/log-collections/${logCollectionId}/log-attributes`);
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load attributes: ${response.statusText}`);
+                }
+
+                const attributes = await response.json();
+                displayAttributes(attributes);
+            } catch (error) {
+                console.error('Error loading attributes:', error);
+                showError('Failed to load attributes: ' + error.message);
+                document.getElementById('loading-row').innerHTML = '<td colspan="7" class="text-center text-danger">Failed to load attributes</td>';
+            }
+        }
+
+        function displayAttributes(attributes) {
+            const tbody = document.querySelector('#attributes-table tbody');
+
+            if (attributes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center">No attributes found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+
+            attributes.forEach(attribute => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${attribute.id}</td>
+                    <td>${escapeHtml(attribute.name)}</td>
+                    <td>${escapeHtml(attribute.sqlColumnName)}</td>
+                    <td>${escapeHtml(attribute.attributeTypeID)}</td>
+                    <td>${escapeHtml(attribute.extractionStyleID)}</td>
+                    <td><code>${escapeHtml(attribute.extractionExpression)}</code></td>
+                    <td>
+                        <a href="/LogAttributes/Edit/${attribute.id}" class="btn btn-sm btn-primary">Edit</a>
+                        <button class="btn btn-sm btn-danger" onclick="deleteAttribute(${attribute.id}, '${escapeHtml(attribute.name)}')">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        async function deleteAttribute(id, name) {
+            if (!confirm(`Are you sure you want to delete the attribute "${name}"? This will also drop the associated column and all data.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/log-attributes/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    showSuccess(`Attribute "${name}" deleted successfully.`);
+                    loadAttributes(); // Reload the table
+                } else if (response.status === 404) {
+                    showError('Attribute not found.');
+                } else {
+                    const error = await response.json();
+                    showError('Failed to delete attribute: ' + (error.detail || response.statusText));
+                }
+            } catch (error) {
+                console.error('Error deleting attribute:', error);
+                showError('Failed to delete attribute: ' + error.message);
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+
+            // Hide success message
+            document.getElementById('success-message').style.display = 'none';
+
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success-message');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+
+            // Hide error message
+            document.getElementById('error-message').style.display = 'none';
+
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+}

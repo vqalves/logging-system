@@ -20,6 +20,29 @@ SET QUOTED_IDENTIFIER ON;
 GO
 
 -- ============================================================================
+-- Schema: logcollection
+-- ============================================================================
+-- Purpose: Creates the "logcollection" schema for storing dynamic log tables
+--
+-- This schema will contain all dynamically created log tables (e.g., Logs_SystemA).
+-- The schema is separate from the "dbo" schema to provide better organization
+-- and isolation of log data tables.
+--
+-- This script is idempotent and can be safely executed multiple times.
+-- ============================================================================
+
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'logcollection')
+BEGIN
+    EXEC('CREATE SCHEMA [logcollection]');
+    PRINT 'Schema [logcollection] created successfully.';
+END
+ELSE
+BEGIN
+    PRINT 'Schema [logcollection] already exists.';
+END
+GO
+
+-- ============================================================================
 -- Table: LogCollection
 -- ============================================================================
 -- Purpose: Stores metadata and configuration for each log collection

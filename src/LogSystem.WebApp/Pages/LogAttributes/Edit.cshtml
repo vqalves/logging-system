@@ -1,0 +1,236 @@
+@page "{id:long?}"
+@model LogSystem.WebApp.Pages.LogAttributes.EditModel
+@{
+    ViewData["Title"] = "Edit Log Attribute";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<div id="error-message" class="alert alert-danger" style="display: none;"></div>
+
+<form id="attribute-form">
+    <input type="hidden" id="attribute-id" value="" />
+    <input type="hidden" id="logCollectionId" value="" />
+
+    <div class="mb-3">
+        <label class="form-label">Log Collection</label>
+        <input type="text" class="form-control bg-light" id="logCollectionDisplay" readonly />
+    </div>
+
+    <div class="mb-3">
+        <label for="name" class="form-label">Name</label>
+        <input type="text" class="form-control bg-light" id="name" name="name" readonly />
+        <div class="form-text">This field cannot be changed.</div>
+    </div>
+
+    <div class="mb-3">
+        <label for="sqlColumnName" class="form-label">SQL Column Name</label>
+        <input type="text" class="form-control bg-light" id="sqlColumnName" name="sqlColumnName" readonly />
+        <div class="form-text">This field cannot be changed.</div>
+    </div>
+
+    <div class="mb-3">
+        <label for="attributeTypeID" class="form-label">Attribute Type</label>
+        <input type="text" class="form-control bg-light" id="attributeTypeID" name="attributeTypeID" readonly />
+        <div class="form-text">This field cannot be changed.</div>
+    </div>
+
+    <div class="mb-3">
+        <label for="extractionStyleID" class="form-label">Extraction Style</label>
+        <input type="text" class="form-control bg-light" id="extractionStyleID" name="extractionStyleID" readonly />
+        <div class="form-text">This field cannot be changed.</div>
+    </div>
+
+    <div class="mb-3">
+        <label for="extractionExpression" class="form-label">Extraction Expression</label>
+        <input type="text" class="form-control" id="extractionExpression" name="extractionExpression" placeholder="e.g., $.userId, $.request.path, $.error.message" />
+        <div class="invalid-feedback" id="extractionExpression-error"></div>
+        <div class="form-text">JSON path expression to extract the value from log data. This is the only editable field.</div>
+    </div>
+
+    <div class="mb-3">
+        <button type="submit" class="btn btn-primary" id="save-button">
+            <span id="save-text">Save</span>
+            <span id="save-spinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
+        </button>
+        <button type="button" class="btn btn-secondary" id="cancel-button">Cancel</button>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        const attributeId = '@RouteData.Values["id"]';
+        let currentAttribute = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!attributeId || attributeId === '') {
+                showError('Attribute ID is required.');
+                document.getElementById('save-button').disabled = true;
+                return;
+            }
+
+            loadAttribute();
+
+            document.getElementById('cancel-button').onclick = () => {
+                if (currentAttribute) {
+                    window.location.href = `/LogAttributes/${currentAttribute.logCollectionID}`;
+                } else {
+                    window.history.back();
+                }
+            };
+        });
+
+        async function loadAttribute() {
+            try {
+                // First, we need to get all attributes and find the one we want
+                // Unfortunately, there's no single GET endpoint for one attribute
+                // We'll need to get the collection ID first from query params or fetch all
+
+                // Let's fetch all log collections first
+                const collectionsResponse = await fetch('/api/log-collections');
+                if (!collectionsResponse.ok) {
+                    throw new Error('Failed to load collections');
+                }
+                const collections = await collectionsResponse.json();
+
+                // Try to find the attribute in each collection
+                for (const collection of collections) {
+                    const attributesResponse = await fetch(`/api/log-collections/${collection.id}/log-attributes`);
+                    if (attributesResponse.ok) {
+                        const attributes = await attributesResponse.json();
+                        const attribute = attributes.find(a => a.id == attributeId);
+
+                        if (attribute) {
+                            currentAttribute = attribute;
+                            populateForm(attribute, collection);
+                            return;
+                        }
+                    }
+                }
+
+                showError('Attribute not found.');
+                document.getElementById('save-button').disabled = true;
+
+            } catch (error) {
+                console.error('Error loading attribute:', error);
+                showError('Failed to load attribute: ' + error.message);
+                document.getElementById('save-button').disabled = true;
+            }
+        }
+
+        async function populateForm(attribute, collection) {
+            document.getElementById('attribute-id').value = attribute.id;
+            document.getElementById('logCollectionId').value = attribute.logCollectionID;
+            document.getElementById('logCollectionDisplay').value = `${collection.name} (ID: ${collection.id})`;
+            document.getElementById('name').value = attribute.name;
+            document.getElementById('sqlColumnName').value = attribute.sqlColumnName;
+            document.getElementById('attributeTypeID').value = attribute.attributeTypeID;
+            document.getElementById('extractionStyleID').value = attribute.extractionStyleID;
+            document.getElementById('extractionExpression').value = attribute.extractionExpression;
+        }
+
+        document.getElementById('attribute-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            if (!currentAttribute) {
+                showError('Attribute data not loaded.');
+                return;
+            }
+
+            // Clear previous errors
+            clearErrors();
+
+            // Get form data - only ExtractionExpression can be different
+            const formData = {
+                logCollectionID: currentAttribute.logCollectionID,
+                name: currentAttribute.name,
+                sqlColumnName: currentAttribute.sqlColumnName,
+                attributeTypeID: currentAttribute.attributeTypeID,
+                extractionStyleID: currentAttribute.extractionStyleID,
+                extractionExpression: document.getElementById('extractionExpression').value.trim()
+            };
+
+            // Show loading state
+            const saveButton = document.getElementById('save-button');
+            const saveText = document.getElementById('save-text');
+            const saveSpinner = document.getElementById('save-spinner');
+            saveButton.disabled = true;
+            saveText.style.display = 'none';
+            saveSpinner.style.display = 'inline-block';
+
+            try {
+                const response = await fetch(`/api/log-attributes/${attributeId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    // Success - redirect to list
+                    window.location.href = `/LogAttributes/${currentAttribute.logCollectionID}`;
+                } else if (response.status === 400) {
+                    // Validation errors
+                    const errorData = await response.json();
+                    displayValidationErrors(errorData);
+                } else if (response.status === 404) {
+                    showError('Attribute not found.');
+                } else {
+                    const errorData = await response.json();
+                    showError(errorData.detail || 'Failed to update attribute: ' + response.statusText);
+                }
+            } catch (error) {
+                console.error('Error updating attribute:', error);
+                showError('Failed to update attribute: ' + error.message);
+            } finally {
+                // Reset loading state
+                saveButton.disabled = false;
+                saveText.style.display = 'inline';
+                saveSpinner.style.display = 'none';
+            }
+        });
+
+        function displayValidationErrors(errorData) {
+            if (errorData.errors) {
+                // Standard validation problem details format
+                for (const [field, messages] of Object.entries(errorData.errors)) {
+                    const fieldName = field.charAt(0).toLowerCase() + field.slice(1);
+                    const errorElement = document.getElementById(`${fieldName}-error`);
+                    const inputElement = document.getElementById(fieldName);
+
+                    if (errorElement && inputElement) {
+                        errorElement.textContent = messages.join(', ');
+                        errorElement.style.display = 'block';
+                        inputElement.classList.add('is-invalid');
+                    }
+                }
+            } else if (errorData.title) {
+                // Single error message
+                showError(errorData.title);
+            } else {
+                showError('Validation failed. Please check your input.');
+            }
+        }
+
+        function clearErrors() {
+            document.getElementById('error-message').style.display = 'none';
+
+            const errorElements = document.querySelectorAll('.invalid-feedback');
+            errorElements.forEach(el => {
+                el.textContent = '';
+                el.style.display = 'none';
+            });
+
+            const inputElements = document.querySelectorAll('.form-control');
+            inputElements.forEach(el => el.classList.remove('is-invalid'));
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            window.scrollTo(0, 0);
+        }
+    </script>
+}

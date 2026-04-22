@@ -2,7 +2,7 @@ using LogSystem.Core.Services.Database;
 using LogSystem.WebApp.BackgroundServices.Persistence;
 using Microsoft.AspNetCore.Mvc;
 
-namespace LogSystem.WebApp.Endpoints;
+namespace LogSystem.WebApp.Endpoints.LogCollection;
 
 public static class DeleteLogCollectionEndpoint
 {
@@ -24,7 +24,7 @@ public static class DeleteLogCollectionEndpoint
             try
             {
                 // Find the collection by iterating through all collections
-                LogCollection? collectionToDelete = await databaseService.GetLogCollectionByIdAsync(id);
+                Core.Services.Database.LogCollection? collectionToDelete = await databaseService.GetLogCollectionByIdAsync(id);
 
                 if (collectionToDelete == null)
                     return Results.NotFound(new { message = "LogCollection not found." });

@@ -2,6 +2,8 @@
 using LogSystem.Core.Services.Azure;
 using LogSystem.Core.Services.Database;
 using LogSystem.WebApp.BackgroundServices.Persistence;
+using LogSystem.WebApp.BackgroundServices.Cleanup;
+using LogSystem.WebApp.Services;
 using System.Text.Json;
 
 namespace LogSystem.WebApp;
@@ -88,6 +90,38 @@ public class LogSystemConfigurationBuilder
             RabbitMqConnectionString = rabbitMqConnectionString,
             RabbitMqQueueName = rabbitMqQueueName,
             MaxFrequency = TimeSpan.FromSeconds(maxFrequencySeconds)
+        };
+    }
+
+    public CleanupBackgroundServiceConfig GetCleanupBackgroundServiceConfig()
+    {
+        var maxRowsPerBatchStr = GetConfigValue("CLEANUP_MAX_ROWS_PER_BATCH");
+        var maxConcurrentCollectionsStr = GetConfigValue("CLEANUP_MAX_CONCURRENT_COLLECTIONS");
+
+        if (string.IsNullOrWhiteSpace(maxRowsPerBatchStr) || !int.TryParse(maxRowsPerBatchStr, out var maxRowsPerBatch))
+            throw new InvalidOperationException($"CLEANUP_MAX_ROWS_PER_BATCH value '{maxRowsPerBatchStr}' is not a valid integer");
+
+        if (string.IsNullOrWhiteSpace(maxConcurrentCollectionsStr) || !int.TryParse(maxConcurrentCollectionsStr, out var maxConcurrentCollections))
+            throw new InvalidOperationException($"CLEANUP_MAX_CONCURRENT_COLLECTIONS value '{maxConcurrentCollectionsStr}' is not a valid integer");
+
+        return new CleanupBackgroundServiceConfig
+        {
+            MaxRowsPerBatch = maxRowsPerBatch,
+            MaxConcurrentCollections = maxConcurrentCollections
+        };
+    }
+
+    public PublishServiceConfig GetPublishServiceConfig()
+    {
+        var rabbitMqConnectionString = GetConfigValue("RABBITMQ_CONNECTION_STRING") ?? throw new InvalidOperationException("RABBITMQ_CONNECTION_STRING not found in configuration");
+        var rabbitMqExchangeName = GetConfigValue("RABBITMQ_PERSISTENCE_EXCHANGE_NAME") ?? throw new InvalidOperationException("RABBITMQ_PERSISTENCE_EXCHANGE_NAME not found in configuration");
+        var rabbitMqRoutingKey = GetConfigValue("RABBITMQ_PERSISTENCE_ROUTING_KEY") ?? throw new InvalidOperationException("RABBITMQ_PERSISTENCE_ROUTING_KEY not found in configuration");
+
+        return new PublishServiceConfig
+        {
+            RabbitMqConnectionString = rabbitMqConnectionString,
+            RabbitMqExchangeName = rabbitMqExchangeName,
+            RabbitMqRoutingKey = rabbitMqRoutingKey
         };
     }
 

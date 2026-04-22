@@ -89,6 +89,7 @@
             <span id="save-text">Save</span>
             <span id="save-spinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
         </button>
+        <a id="manage-attributes-button" class="btn btn-info" style="display: none;">Manage Attributes</a>
         <button type="button" class="btn btn-secondary" onclick="window.history.back()">Cancel</button>
     </div>
 </form>
@@ -105,6 +106,10 @@
                 // Make TableName read-only when editing
                 document.getElementById('tableName').setAttribute('readonly', 'readonly');
                 document.getElementById('tableName').classList.add('bg-light');
+                // Show Manage Attributes button in edit mode
+                const manageAttributesButton = document.getElementById('manage-attributes-button');
+                manageAttributesButton.style.display = 'inline-block';
+                manageAttributesButton.href = `/LogAttributes/${collectionId}`;
             } else {
                 document.getElementById('page-title').textContent = 'Create Log Collection';
             }

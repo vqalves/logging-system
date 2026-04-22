@@ -1,0 +1,229 @@
+@page
+@model LogSystem.WebApp.Pages.LogAttributes.ManageModel
+@{
+    ViewData["Title"] = "Create Log Attribute";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<div id="error-message" class="alert alert-danger" style="display: none;"></div>
+
+<form id="attribute-form">
+    <input type="hidden" id="logCollectionId" value="" />
+    <input type="hidden" id="logCollectionName" value="" />
+
+    <div class="mb-3">
+        <label class="form-label">Log Collection</label>
+        <input type="text" class="form-control bg-light" id="logCollectionDisplay" readonly />
+    </div>
+
+    <div class="mb-3">
+        <label for="name" class="form-label">Name</label>
+        <input type="text" class="form-control" id="name" name="name" placeholder="e.g., User ID, Request Path, Error Message" />
+        <div class="invalid-feedback" id="name-error"></div>
+        <div class="form-text">Human-readable name for this attribute.</div>
+    </div>
+
+    <div class="mb-3">
+        <label for="sqlColumnName" class="form-label">SQL Column Name</label>
+        <input type="text" class="form-control" id="sqlColumnName" name="sqlColumnName" placeholder="e.g., user_id, request_path, error_message" />
+        <div class="invalid-feedback" id="sqlColumnName-error"></div>
+        <div class="form-text">Database column name. Only alphanumeric characters and underscores are allowed.</div>
+    </div>
+
+    <div class="mb-3">
+        <label for="attributeTypeID" class="form-label">Attribute Type</label>
+        <select class="form-select" id="attributeTypeID" name="attributeTypeID">
+            <option value="">-- Select Attribute Type --</option>
+        </select>
+        <div class="invalid-feedback" id="attributeTypeID-error"></div>
+        <div class="form-text">Data type for this attribute.</div>
+    </div>
+
+    <div class="mb-3">
+        <label for="extractionStyleID" class="form-label">Extraction Style</label>
+        <select class="form-select" id="extractionStyleID" name="extractionStyleID">
+            <option value="json">JSON</option>
+        </select>
+        <div class="invalid-feedback" id="extractionStyleID-error"></div>
+        <div class="form-text">Method used to extract data from log entries.</div>
+    </div>
+
+    <div class="mb-3">
+        <label for="extractionExpression" class="form-label">Extraction Expression</label>
+        <input type="text" class="form-control" id="extractionExpression" name="extractionExpression" placeholder="e.g., $.userId, $.request.path, $.error.message" />
+        <div class="invalid-feedback" id="extractionExpression-error"></div>
+        <div class="form-text">JSON path expression to extract the value from log data.</div>
+    </div>
+
+    <div class="mb-3">
+        <button type="submit" class="btn btn-primary" id="save-button">
+            <span id="save-text">Save</span>
+            <span id="save-spinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
+        </button>
+        <button type="button" class="btn btn-secondary" id="cancel-button">Cancel</button>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const logCollectionId = urlParams.get('logCollectionId');
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!logCollectionId) {
+                showError('LogCollectionId is required.');
+                document.getElementById('save-button').disabled = true;
+                return;
+            }
+
+            loadLogCollection();
+            populateAttributeTypes();
+
+            document.getElementById('cancel-button').onclick = () => {
+                window.location.href = `/LogAttributes/${logCollectionId}`;
+            };
+        });
+
+        async function loadLogCollection() {
+            try {
+                const response = await fetch('/api/log-collections');
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load collections: ${response.statusText}`);
+                }
+
+                const collections = await response.json();
+                const collection = collections.find(c => c.id == logCollectionId);
+
+                if (!collection) {
+                    showError('LogCollection not found.');
+                    document.getElementById('save-button').disabled = true;
+                    return;
+                }
+
+                document.getElementById('logCollectionId').value = collection.id;
+                document.getElementById('logCollectionName').value = collection.name;
+                document.getElementById('logCollectionDisplay').value = `${collection.name} (ID: ${collection.id})`;
+
+            } catch (error) {
+                console.error('Error loading collection:', error);
+                showError('Failed to load collection: ' + error.message);
+            }
+        }
+
+        function populateAttributeTypes() {
+            const attributeTypes = [
+                { value: 'text', label: 'Text (VARCHAR)', description: 'Text string up to 8000 characters' },
+                { value: 'integer', label: 'Integer (INT)', description: 'Whole numbers' },
+                { value: 'datetime', label: 'DateTime (DATETIME2)', description: 'Date and time values' },
+                { value: 'boolean', label: 'Boolean (BIT)', description: 'True/false values' },
+                { value: 'decimal', label: 'Decimal (DECIMAL)', description: 'Decimal numbers with 4 decimal places' }
+            ];
+
+            const select = document.getElementById('attributeTypeID');
+
+            attributeTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type.value;
+                option.textContent = type.label;
+                option.title = type.description;
+                select.appendChild(option);
+            });
+        }
+
+        document.getElementById('attribute-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // Clear previous errors
+            clearErrors();
+
+            // Get form data
+            const formData = {
+                logCollectionID: parseInt(document.getElementById('logCollectionId').value),
+                name: document.getElementById('name').value.trim(),
+                sqlColumnName: document.getElementById('sqlColumnName').value.trim(),
+                attributeTypeID: document.getElementById('attributeTypeID').value,
+                extractionStyleID: document.getElementById('extractionStyleID').value,
+                extractionExpression: document.getElementById('extractionExpression').value.trim()
+            };
+
+            // Show loading state
+            const saveButton = document.getElementById('save-button');
+            const saveText = document.getElementById('save-text');
+            const saveSpinner = document.getElementById('save-spinner');
+            saveButton.disabled = true;
+            saveText.style.display = 'none';
+            saveSpinner.style.display = 'inline-block';
+
+            try {
+                const response = await fetch('/api/log-attributes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    // Success - redirect to list
+                    window.location.href = `/LogAttributes/${logCollectionId}`;
+                } else if (response.status === 400) {
+                    // Validation errors
+                    const errorData = await response.json();
+                    displayValidationErrors(errorData);
+                } else {
+                    const errorData = await response.json();
+                    showError(errorData.detail || 'Failed to save attribute: ' + response.statusText);
+                }
+            } catch (error) {
+                console.error('Error saving attribute:', error);
+                showError('Failed to save attribute: ' + error.message);
+            } finally {
+                // Reset loading state
+                saveButton.disabled = false;
+                saveText.style.display = 'inline';
+                saveSpinner.style.display = 'none';
+            }
+        });
+
+        function displayValidationErrors(errorData) {
+            if (errorData.errors) {
+                // Standard validation problem details format
+                for (const [field, messages] of Object.entries(errorData.errors)) {
+                    const fieldName = field.charAt(0).toLowerCase() + field.slice(1);
+                    const errorElement = document.getElementById(`${fieldName}-error`);
+                    const inputElement = document.getElementById(fieldName);
+
+                    if (errorElement && inputElement) {
+                        errorElement.textContent = messages.join(', ');
+                        errorElement.style.display = 'block';
+                        inputElement.classList.add('is-invalid');
+                    }
+                }
+            } else {
+                showError('Validation failed. Please check your input.');
+            }
+        }
+
+        function clearErrors() {
+            document.getElementById('error-message').style.display = 'none';
+
+            const errorElements = document.querySelectorAll('.invalid-feedback');
+            errorElements.forEach(el => {
+                el.textContent = '';
+                el.style.display = 'none';
+            });
+
+            const inputElements = document.querySelectorAll('.form-control, .form-select');
+            inputElements.forEach(el => el.classList.remove('is-invalid'));
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            window.scrollTo(0, 0);
+        }
+    </script>
+}

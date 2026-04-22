@@ -2,7 +2,7 @@ using LogSystem.Core.Services.Database;
 using LogSystem.WebApp.BackgroundServices.Persistence;
 using Microsoft.AspNetCore.Mvc;
 
-namespace LogSystem.WebApp.Endpoints;
+namespace LogSystem.WebApp.Endpoints.LogCollection;
 
 public static class CreateOrUpdateLogCollectionEndpoint
 {
@@ -24,12 +24,12 @@ public static class CreateOrUpdateLogCollectionEndpoint
 
             try
             {
-                LogCollection logCollection;
+                Core.Services.Database.LogCollection logCollection;
 
                 if (request.ID == null || request.ID == 0)
                 {
                     // Create new collection
-                    logCollection = new LogCollection(request.Name!, request.ClientId!, request.TableName!, request.LogDurationHours!.Value);
+                    logCollection = new Core.Services.Database.LogCollection(request.Name!, request.ClientId!, request.TableName!, request.LogDurationHours!.Value);
                 }
                 else
                 {
@@ -77,7 +77,7 @@ public static class CreateOrUpdateLogCollectionEndpoint
         }
 
         // Validate ClientId using static validation method
-        if (!LogCollection.TryValidateClientId(request.ClientId ?? "", out var clientIdError))
+        if (!Core.Services.Database.LogCollection.TryValidateClientId(request.ClientId ?? "", out var clientIdError))
         {
             errors.Add("ClientId", new[] { clientIdError! });
         }
@@ -91,7 +91,7 @@ public static class CreateOrUpdateLogCollectionEndpoint
         }
 
         // Validate TableName using static validation method
-        if (!LogCollection.TryValidateTableName(request.TableName ?? "", out var tableNameError))
+        if (!Core.Services.Database.LogCollection.TryValidateTableName(request.TableName ?? "", out var tableNameError))
         {
             errors.Add("TableName", new[] { tableNameError! });
         }

@@ -34,7 +34,7 @@ public class BatchPersistenceService(
 
             await ProcessBatchAsync(messagesPerCollectionName, logCollectionCache, batchStartTime);
 
-            HandleMessageAcknowledgments(messages);
+            await HandleMessageAcknowledgmentsAsync(messages);
         }
     }
 
@@ -195,7 +195,7 @@ public class BatchPersistenceService(
             msg.Status = ReceivedMessageModel.PersistenceStatus.Failed;
     }
 
-    private void HandleMessageAcknowledgments(List<ReceivedMessageModel> messages)
+    private async Task HandleMessageAcknowledgmentsAsync(List<ReceivedMessageModel> messages)
     {
         var messagesByChannel = messages.GroupBy(m => m.Channel).ToList();
 
@@ -208,20 +208,20 @@ public class BatchPersistenceService(
             if (successfulMessages.Count == channelMessages.Count)
             {
                 var highestDeliveryTag = messages.Max(m => m.DeliveryTag);
-                channelGroup.Key.BasicAck(deliveryTag: highestDeliveryTag, multiple: true);
+                await channelGroup.Key.BasicAckAsync(deliveryTag: highestDeliveryTag, multiple: true);
             }
             else if (failedMessages.Count == channelMessages.Count)
             {
                 var highestDeliveryTag = messages.Max(m => m.DeliveryTag);
-                channelGroup.Key.BasicNack(deliveryTag: highestDeliveryTag, multiple: true, requeue: false);
+                await channelGroup.Key.BasicNackAsync(deliveryTag: highestDeliveryTag, multiple: true, requeue: false);
             }
             else
             {
                 foreach (var msg in successfulMessages)
-                    msg.Channel.BasicAck(deliveryTag: msg.DeliveryTag, multiple: false);
+                    await msg.Channel.BasicAckAsync(deliveryTag: msg.DeliveryTag, multiple: false);
 
                 foreach (var msg in failedMessages)
-                    msg.Channel.BasicNack(deliveryTag: msg.DeliveryTag, multiple: false, requeue: false);
+                    await msg.Channel.BasicNackAsync(deliveryTag: msg.DeliveryTag, multiple: false, requeue: false);
             }
         }
     }

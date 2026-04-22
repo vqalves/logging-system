@@ -6,7 +6,7 @@ namespace LogSystem.WebApp.BackgroundServices.Persistence;
 
 public class ReceivedMessageModel
 {
-    public required IModel Channel { get; init; }
+    public required IChannel Channel { get; init; }
     public required ulong DeliveryTag { get; init; }
     public required string Payload { get; init; }
     public required PersistenceStatus Status { get; set; }
