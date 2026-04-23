@@ -16,13 +16,17 @@ public class PersistenceBackgroundService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("PersistenceBackgroundService starting...");
+        logger.LogInformation("PersistenceBackgroundService starting with {ChannelCount} channels...", persistenceConfig.RabbitMqChannelCount);
 
         var messageChannel = Channel.CreateUnbounded<ReceivedMessageModel>(new UnboundedChannelOptions
         {
             SingleReader = true,
             SingleWriter = false
         });
+
+        IConnection? rabbitConnection = null;
+        var rabbitChannels = new List<IChannel>();
+        var consumerTasks = new List<Task>();
 
         try
         {
@@ -32,66 +36,92 @@ public class PersistenceBackgroundService(
                 Uri = new Uri(persistenceConfig.RabbitMqConnectionString)
             };
 
-            // Create connection and channel
-            await using var rabbitConnection = await factory.CreateConnectionAsync();
-            await using var rabbitChannel = await rabbitConnection.CreateChannelAsync();
+            // Create connection
+            rabbitConnection = await factory.CreateConnectionAsync();
 
-            // Create async consumer
-            var consumer = new AsyncEventingBasicConsumer(rabbitChannel);
-
-            consumer.ReceivedAsync += async (model, ea) =>
+            // Create multiple channels with consumers
+            for (int i = 0; i < persistenceConfig.RabbitMqChannelCount; i++)
             {
-                bool success = false;
-
+                var channelIndex = i;
                 try
                 {
-                    var body = ea.Body.ToArray();
-                    var payload = Encoding.UTF8.GetString(body);
+                    var rabbitChannel = await rabbitConnection.CreateChannelAsync();
+                    rabbitChannels.Add(rabbitChannel);
 
-                    var receivedMessage = new ReceivedMessageModel
+                    // Set prefetch count for this channel
+                    await rabbitChannel.BasicQosAsync(
+                        prefetchSize: 0,
+                        prefetchCount: persistenceConfig.RabbitMqPrefetchCount,
+                        global: false);
+
+                    // Create async consumer
+                    var consumer = new AsyncEventingBasicConsumer(rabbitChannel);
+
+                    consumer.ReceivedAsync += async (model, ea) =>
                     {
-                        Channel = rabbitChannel,
-                        DeliveryTag = ea.DeliveryTag,
-                        Payload = payload,
-                        Status = ReceivedMessageModel.PersistenceStatus.Pending
+                        bool success = false;
+
+                        try
+                        {
+                            var body = ea.Body.ToArray();
+                            var payload = Encoding.UTF8.GetString(body);
+
+                            var receivedMessage = new ReceivedMessageModel
+                            {
+                                Channel = rabbitChannel,
+                                DeliveryTag = ea.DeliveryTag,
+                                Payload = payload,
+                                Status = ReceivedMessageModel.PersistenceStatus.Pending
+                            };
+
+                            var logCollectionName = receivedMessage.GetLogCollectionClientId();
+
+                            var logCollection = await logCollectionCache.GetOrCreateByClientIdAsync(logCollectionName);
+                            var attributes = await logAttributeCache.ListAttributesAsync(logCollection);
+                            var attributesList = attributes.ToList();
+
+                            var extractionService = new LogExtractionService();
+                            receivedMessage.Log = extractionService.Extract(
+                                logCollection: logCollection,
+                                attributes: attributesList,
+                                contentAsJsonDocument: receivedMessage.GetJsonDocument);
+
+                            await messageChannel.Writer.WriteAsync(receivedMessage, stoppingToken);
+                            success = true;
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "Error receiving message on channel {ChannelIndex}", channelIndex);
+                            success = false;
+                        }
+
+                        if (!success)
+                        {
+                            await rabbitChannel.BasicNackAsync(
+                                deliveryTag: ea.DeliveryTag,
+                                multiple: false,
+                                requeue: false);
+                        }
                     };
 
-                    var logCollectionName = receivedMessage.GetLogCollectionClientId();
-
-                    var logCollection = await logCollectionCache.GetOrCreateByClientIdAsync(logCollectionName);
-                    var attributes = await logAttributeCache.ListAttributesAsync(logCollection);
-                    var attributesList = attributes.ToList();
-
-                    var extractionService = new LogExtractionService();
-                    receivedMessage.Log = extractionService.Extract(
-                        logCollection: logCollection,
-                        attributes: attributesList,
-                        contentAsJsonDocument: receivedMessage.GetJsonDocument);
-
-                    await messageChannel.Writer.WriteAsync(receivedMessage, stoppingToken);
-                    success = true;
+                    // Start consuming
+                    await rabbitChannel.BasicConsumeAsync(
+                        queue: persistenceConfig.RabbitMqQueueName,
+                        autoAck: false,
+                        consumer: consumer);
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "Error receiving message");
-                    success = false;
+                    logger.LogError(ex, "Failed to create channel {ChannelIndex}", channelIndex);
                 }
+            }
 
-                if(!success)
-                {
-                    await rabbitChannel.BasicNackAsync(
-                        deliveryTag: ea.DeliveryTag,
-                        multiple: false,
-                        requeue: false);
-                }
-            };
+            if (rabbitChannels.Count == 0)
+                throw new InvalidOperationException("Failed to create any RabbitMQ channels");
 
-            // Start consuming
-            await rabbitChannel.BasicConsumeAsync(
-                queue: persistenceConfig.RabbitMqQueueName,
-                autoAck: false, // Manual acknowledgment
-                consumer: consumer);
+            logger.LogInformation("Successfully started {Count} out of {Total} channels", rabbitChannels.Count, persistenceConfig.RabbitMqChannelCount);
 
+            // Process messages until cancellation
             await batchPersistenceService.ProcessMessagesAsync(messageChannel, logCollectionCache, stoppingToken);
         }
         catch (OperationCanceledException)
@@ -102,6 +132,41 @@ public class PersistenceBackgroundService(
         {
             logger.LogError(ex, "Fatal error in PersistenceBackgroundService");
             throw;
+        }
+        finally
+        {
+            // Signal that no more messages will be written
+            messageChannel.Writer.Complete();
+
+            // Dispose all channels
+            foreach (var channel in rabbitChannels)
+            {
+                try
+                {
+                    await channel.CloseAsync();
+                    await channel.DisposeAsync();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error disposing RabbitMQ channel");
+                }
+            }
+
+            // Dispose connection
+            if (rabbitConnection != null)
+            {
+                try
+                {
+                    await rabbitConnection.CloseAsync();
+                    await rabbitConnection.DisposeAsync();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error disposing RabbitMQ connection");
+                }
+            }
+
+            logger.LogInformation("PersistenceBackgroundService stopped");
         }
     }
 }

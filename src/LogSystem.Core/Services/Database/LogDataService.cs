@@ -38,6 +38,107 @@ public class LogDataService
         }
     }
 
+    internal async Task SaveLogsBatchAsync(LogCollection logCollection, IList<Log> logs, SqlConnection connection)
+    {
+        foreach (var log in logs)
+        {
+            // Build column names and parameter names
+            var columnNames = new List<string> { "[SourceFileIndex]", "[SourceFileName]", "[ValidUntilUtc]" };
+            var parameterNames = new List<string> { "@SourceFileIndex", "@SourceFileName", "@ValidUntilUtc" };
+
+            // Add dynamic columns from attributes
+            if (log.Attributes != null)
+            {
+                foreach (var attribute in log.Attributes)
+                {
+                    columnNames.Add($"[{attribute.Key}]");
+                    parameterNames.Add($"@{attribute.Key}");
+                }
+            }
+
+            // Build INSERT statement
+            var insertSql = $@"
+                INSERT INTO [logcollection].[{logCollection.TableName}] ({string.Join(", ", columnNames)})
+                VALUES ({string.Join(", ", parameterNames)});";
+
+            using var command = new SqlCommand(insertSql, connection);
+
+            // Add fixed parameters
+            command.Parameters.AddWithValue("@SourceFileIndex", log.SourceFileIndex);
+            command.Parameters.AddWithValue("@SourceFileName", log.SourceFileName ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@ValidUntilUtc", log.ValidUntilUtc);
+
+            // Add dynamic parameters from attributes
+            if (log.Attributes != null)
+                foreach (var attribute in log.Attributes)
+                    command.Parameters.AddWithValue($"@{attribute.Key}", attribute.Value ?? DBNull.Value);
+
+            await command.ExecuteNonQueryAsync();
+        }
+    }
+
+    internal async Task SaveLogsBulkAsync(LogCollection logCollection, IList<Log> logs, SqlConnection connection)
+    {
+        // Create DataTable with schema matching the target table
+        var dataTable = new DataTable();
+
+        // Add fixed columns
+        dataTable.Columns.Add("SourceFileIndex", typeof(int));
+        dataTable.Columns.Add("SourceFileName", typeof(string));
+        dataTable.Columns.Add("ValidUntilUtc", typeof(DateTime));
+
+        // Add dynamic columns from first log's attributes
+        var firstLog = logs[0];
+        var dynamicColumns = new List<string>();
+        if (firstLog.Attributes != null)
+        {
+            foreach (var attribute in firstLog.Attributes)
+            {
+                dataTable.Columns.Add(attribute.Key, typeof(object));
+                dynamicColumns.Add(attribute.Key);
+            }
+        }
+
+        // Populate rows from logs collection
+        foreach (var log in logs)
+        {
+            var row = dataTable.NewRow();
+
+            // Set fixed column values
+            row["SourceFileIndex"] = log.SourceFileIndex;
+            row["SourceFileName"] = log.SourceFileName ?? (object)DBNull.Value;
+            row["ValidUntilUtc"] = log.ValidUntilUtc;
+
+            // Set dynamic column values
+            foreach (var columnName in dynamicColumns)
+            {
+                if (log.Attributes != null && log.Attributes.TryGetValue(columnName, out var value))
+                    row[columnName] = value ?? DBNull.Value;
+                else
+                    row[columnName] = DBNull.Value;
+            }
+
+            dataTable.Rows.Add(row);
+        }
+
+        // Use SqlBulkCopy to write to server
+        using var bulkCopy = new SqlBulkCopy(connection)
+        {
+            DestinationTableName = $"[logcollection].[{logCollection.TableName}]",
+            BatchSize = 1000
+        };
+
+        // Map columns explicitly
+        bulkCopy.ColumnMappings.Add("SourceFileIndex", "SourceFileIndex");
+        bulkCopy.ColumnMappings.Add("SourceFileName", "SourceFileName");
+        bulkCopy.ColumnMappings.Add("ValidUntilUtc", "ValidUntilUtc");
+
+        foreach (var columnName in dynamicColumns)
+            bulkCopy.ColumnMappings.Add(columnName, columnName);
+
+        await bulkCopy.WriteToServerAsync(dataTable);
+    }
+
     public async Task<int> DeleteExpiredLogsAsync(LogCollection logCollection, int maxRows)
     {
         using var connection = new SqlConnection(DatabaseConfig.ConnectionString);
@@ -227,107 +328,6 @@ public class LogDataService
 
             yield return log;
         }
-    }
-
-    internal async Task SaveLogsBatchAsync(LogCollection logCollection, IList<Log> logs, SqlConnection connection)
-    {
-        foreach (var log in logs)
-        {
-            // Build column names and parameter names
-            var columnNames = new List<string> { "[SourceFileIndex]", "[SourceFileName]", "[ValidUntilUtc]" };
-            var parameterNames = new List<string> { "@SourceFileIndex", "@SourceFileName", "@ValidUntilUtc" };
-
-            // Add dynamic columns from attributes
-            if (log.Attributes != null)
-            {
-                foreach (var attribute in log.Attributes)
-                {
-                    columnNames.Add($"[{attribute.Key}]");
-                    parameterNames.Add($"@{attribute.Key}");
-                }
-            }
-
-            // Build INSERT statement
-            var insertSql = $@"
-                INSERT INTO [logcollection].[{logCollection.TableName}] ({string.Join(", ", columnNames)})
-                VALUES ({string.Join(", ", parameterNames)});";
-
-            using var command = new SqlCommand(insertSql, connection);
-
-            // Add fixed parameters
-            command.Parameters.AddWithValue("@SourceFileIndex", log.SourceFileIndex);
-            command.Parameters.AddWithValue("@SourceFileName", log.SourceFileName ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@ValidUntilUtc", log.ValidUntilUtc);
-
-            // Add dynamic parameters from attributes
-            if (log.Attributes != null)
-                foreach (var attribute in log.Attributes)
-                    command.Parameters.AddWithValue($"@{attribute.Key}", attribute.Value ?? DBNull.Value);
-
-            await command.ExecuteNonQueryAsync();
-        }
-    }
-
-    internal async Task SaveLogsBulkAsync(LogCollection logCollection, IList<Log> logs, SqlConnection connection)
-    {
-        // Create DataTable with schema matching the target table
-        var dataTable = new DataTable();
-
-        // Add fixed columns
-        dataTable.Columns.Add("SourceFileIndex", typeof(int));
-        dataTable.Columns.Add("SourceFileName", typeof(string));
-        dataTable.Columns.Add("ValidUntilUtc", typeof(DateTime));
-
-        // Add dynamic columns from first log's attributes
-        var firstLog = logs[0];
-        var dynamicColumns = new List<string>();
-        if (firstLog.Attributes != null)
-        {
-            foreach (var attribute in firstLog.Attributes)
-            {
-                dataTable.Columns.Add(attribute.Key, typeof(object));
-                dynamicColumns.Add(attribute.Key);
-            }
-        }
-
-        // Populate rows from logs collection
-        foreach (var log in logs)
-        {
-            var row = dataTable.NewRow();
-
-            // Set fixed column values
-            row["SourceFileIndex"] = log.SourceFileIndex;
-            row["SourceFileName"] = log.SourceFileName ?? (object)DBNull.Value;
-            row["ValidUntilUtc"] = log.ValidUntilUtc;
-
-            // Set dynamic column values
-            foreach (var columnName in dynamicColumns)
-            {
-                if (log.Attributes != null && log.Attributes.TryGetValue(columnName, out var value))
-                    row[columnName] = value ?? DBNull.Value;
-                else
-                    row[columnName] = DBNull.Value;
-            }
-
-            dataTable.Rows.Add(row);
-        }
-
-        // Use SqlBulkCopy to write to server
-        using var bulkCopy = new SqlBulkCopy(connection)
-        {
-            DestinationTableName = $"[logcollection].[{logCollection.TableName}]",
-            BatchSize = 1000
-        };
-
-        // Map columns explicitly
-        bulkCopy.ColumnMappings.Add("SourceFileIndex", "SourceFileIndex");
-        bulkCopy.ColumnMappings.Add("SourceFileName", "SourceFileName");
-        bulkCopy.ColumnMappings.Add("ValidUntilUtc", "ValidUntilUtc");
-
-        foreach (var columnName in dynamicColumns)
-            bulkCopy.ColumnMappings.Add(columnName, columnName);
-
-        await bulkCopy.WriteToServerAsync(dataTable);
     }
 
     private object ConvertFilterValue(object? value, LogAttribute attribute)

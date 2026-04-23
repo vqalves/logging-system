@@ -84,15 +84,25 @@ public class LogSystemConfigurationBuilder
         var rabbitMqConnectionString = GetConfigValue("RABBITMQ_CONNECTION_STRING") ?? throw new InvalidOperationException("RABBITMQ_CONNECTION_STRING not found in configuration");
         var rabbitMqQueueName = GetConfigValue("RABBITMQ_QUEUE_NAME") ?? throw new InvalidOperationException("RABBITMQ_QUEUE_NAME not found in configuration");
         var maxFrequencySecondsStr = GetConfigValue("PERSISTENCE_MAX_FREQUENCY_SECONDS");
+        var channelCountStr = GetConfigValue("RABBITMQ_CHANNEL_COUNT");
+        var prefetchCountStr = GetConfigValue("RABBITMQ_PREFETCH_COUNT");
 
         if (string.IsNullOrWhiteSpace(maxFrequencySecondsStr) || !int.TryParse(maxFrequencySecondsStr, out var maxFrequencySeconds))
             throw new InvalidOperationException($"PERSISTENCE_MAX_FREQUENCY_SECONDS value '{maxFrequencySecondsStr}' is not a valid integer");
+
+        if (string.IsNullOrWhiteSpace(channelCountStr) || !int.TryParse(channelCountStr, out var channelCount))
+            throw new InvalidOperationException($"RABBITMQ_CHANNEL_COUNT value '{channelCountStr}' is not a valid integer");
+
+        if (string.IsNullOrWhiteSpace(prefetchCountStr) || !ushort.TryParse(prefetchCountStr, out var prefetchCount))
+            throw new InvalidOperationException($"RABBITMQ_PREFETCH_COUNT value '{prefetchCountStr}' is not a valid ushort");
 
         return new PersistenceBackgroundServiceConfig
         {
             RabbitMqConnectionString = rabbitMqConnectionString,
             RabbitMqQueueName = rabbitMqQueueName,
-            MaxFrequency = TimeSpan.FromSeconds(maxFrequencySeconds)
+            MaxFrequency = TimeSpan.FromSeconds(maxFrequencySeconds),
+            RabbitMqChannelCount = channelCount,
+            RabbitMqPrefetchCount = prefetchCount
         };
     }
 

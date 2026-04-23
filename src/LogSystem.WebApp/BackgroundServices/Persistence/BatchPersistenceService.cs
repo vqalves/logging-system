@@ -25,6 +25,8 @@ public class BatchPersistenceService(
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            
+
             await messageChannel.Reader.WaitToReadAsync(stoppingToken);
 
             await ApplyFrequencyDelayAsync(lastExecution, stoppingToken);
@@ -129,6 +131,8 @@ public class BatchPersistenceService(
         LogCollectionCache logCollectionCache,
         string persistedFileName)
     {
+        
+
         var logCollection = await logCollectionCache.GetOrCreateByClientIdAsync(collectionGroup.CollectionClientId);
 
         // Extract logs from messages (using pre-extracted logs where available)
