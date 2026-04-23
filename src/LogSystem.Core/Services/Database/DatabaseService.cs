@@ -1,4 +1,5 @@
 ﻿using Microsoft.Data.SqlClient;
+using LogSystem.Core.Metrics;
 
 namespace LogSystem.Core.Services.Database;
 
@@ -133,9 +134,9 @@ public class DatabaseService
         }
     }
 
-    public async Task SaveLogsAsync(LogCollection logCollection, IEnumerable<Log> logs)
+    public async Task SaveLogsAsync(LogCollection logCollection, IEnumerable<Log> logs, DatabaseOperationReport databaseReport)
     {
-        await LogDataService.SaveLogsAsync(logCollection, logs);
+        await LogDataService.SaveLogsAsync(logCollection, logs, databaseReport);
     }
 
     public async Task<int> DeleteExpiredLogsAsync(LogCollection logCollection, int maxRows)

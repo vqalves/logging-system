@@ -7,7 +7,9 @@ using Azure.ResourceManager.Storage.Models;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using LogSystem.Core.Services.Database;
+using LogSystem.Core.Metrics;
 using System.Data;
+using System.Diagnostics;
 using System.IO.Compression;
 
 namespace LogSystem.Core.Services.Azure;
@@ -21,8 +23,10 @@ public class AzureService
         AzureConfig = azureConfig;
     }
 
-    public async Task UploadFileAsync(string collectionName, string fileName, string content)
+    public async Task UploadFileAsync(string collectionName, string fileName, string content, AzureOperationReport azureReport)
     {
+        var totalStopwatch = Stopwatch.StartNew();
+
         // Initialize BlobServiceClient using AzureConfig connection string
         var blobServiceClient = new BlobServiceClient(AzureConfig.ConnectionString);
         var containerClient = blobServiceClient.GetBlobContainerClient(AzureConfig.ContainerName);
@@ -32,6 +36,7 @@ public class AzureService
         var blobClient = containerClient.GetBlobClient(blobPath);
 
         // Compress content using GZipStream to byte array
+        var compressStopwatch = Stopwatch.StartNew();
         byte[] compressedContent;
         using (var outputStream = new MemoryStream())
         {
@@ -42,6 +47,7 @@ public class AzureService
 
             compressedContent = outputStream.ToArray();
         }
+        azureReport.CompressToGzip = compressStopwatch.StopAndReturnEllapsed();
 
         // Upload compressed content to blob with metadata
         // BlobUploadOptions allows overwriting existing blobs
@@ -55,6 +61,7 @@ public class AzureService
             }
         };
 
+        var uploadStopwatch = Stopwatch.StartNew();
         try
         {
             using (var contentStream = new MemoryStream(compressedContent))
@@ -68,6 +75,8 @@ public class AzureService
             using (var contentStream = new MemoryStream(compressedContent))
                 await blobClient.UploadAsync(contentStream, uploadOptions);
         }
+        azureReport.UploadFile = uploadStopwatch.StopAndReturnEllapsed();
+        azureReport.TotalExecutionTime = totalStopwatch.StopAndReturnEllapsed();
     }
 
     public async Task SaveLifecyclePolicyAsync(AzureService azureService, LogCollection logCollection)

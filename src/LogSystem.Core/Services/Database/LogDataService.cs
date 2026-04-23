@@ -1,6 +1,8 @@
 using System.Data;
+using System.Diagnostics;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using LogSystem.Core.Metrics;
 
 namespace LogSystem.Core.Services.Database;
 
@@ -17,17 +19,25 @@ public class LogDataService
         Logger = logger;
     }
 
-    public async Task SaveLogsAsync(LogCollection logCollection, IEnumerable<Log> logs)
+    public async Task SaveLogsAsync(LogCollection logCollection, IEnumerable<Log> logs, DatabaseOperationReport databaseReport)
     {
+        var totalStopwatch = Stopwatch.StartNew();
+
         // Materialize the collection to avoid multiple enumeration
         var logsList = logs as IList<Log> ?? logs.ToList();
 
         if (logsList.Count == 0)
+        {
+            databaseReport.TotalExecutionTime = totalStopwatch.StopAndReturnEllapsed();
             return; // Nothing to save
+        }
 
+        var connectionStopwatch = Stopwatch.StartNew();
         using var connection = new SqlConnection(DatabaseConfig.ConnectionString);
         await connection.OpenAsync();
+        databaseReport.OpenConnectionToDatabase = connectionStopwatch.StopAndReturnEllapsed();
 
+        var saveStopwatch = Stopwatch.StartNew();
         if (logsList.Count < 10)
         {
             await SaveLogsBatchAsync(logCollection, logsList, connection);
@@ -36,6 +46,9 @@ public class LogDataService
         {
             await SaveLogsBulkAsync(logCollection, logsList, connection);
         }
+        
+        databaseReport.SaveData = saveStopwatch.StopAndReturnEllapsed();
+        databaseReport.TotalExecutionTime = totalStopwatch.StopAndReturnEllapsed();
     }
 
     internal async Task SaveLogsBatchAsync(LogCollection logCollection, IList<Log> logs, SqlConnection connection)

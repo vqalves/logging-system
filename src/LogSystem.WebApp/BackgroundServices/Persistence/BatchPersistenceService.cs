@@ -1,5 +1,7 @@
 using LogSystem.Core.Services.Azure;
 using LogSystem.Core.Services.Database;
+using LogSystem.Core.Metrics;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.Channels;
 
@@ -25,23 +27,34 @@ public class BatchPersistenceService(
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            
-
             await messageChannel.Reader.WaitToReadAsync(stoppingToken);
 
             await ApplyFrequencyDelayAsync(lastExecution, stoppingToken);
 
+            var report = new PersistenceReport();
+            var totalStopwatch = Stopwatch.StartNew();
+
             var batchStartTime = DateTime.UtcNow;
             lastExecution = batchStartTime;
 
+            // Read messages from channel
+            var readingStopwatch = Stopwatch.StartNew();
             var messages = ReadAvailableMessages(messageChannel);
+            
+            report.ReadingFromChannel = readingStopwatch.StopAndReturnEllapsed();
+            report.MessageCount = messages.Count;
+
+            // Group messages by collection
+            var groupingStopwatch = Stopwatch.StartNew();
             var messagesPerCollectionName = GroupMessagesByCollection(messages);
+            
+            report.GroupingByCollectionName = groupingStopwatch.StopAndReturnEllapsed();
 
             var persistedFileName = $"{batchStartTime:yyyyMMddHHmmss}.json.gzip";
 
             try
             {
-                await ProcessBatchesAsync(messagesPerCollectionName, logCollectionCache, persistedFileName);
+                await ProcessBatchesAsync(messagesPerCollectionName, logCollectionCache, persistedFileName, report);
             }
             catch(Exception ex)
             {
@@ -56,7 +69,12 @@ public class BatchPersistenceService(
             {
                 logger.LogError(ex, "Error acknowleding messages");
             }
-            
+
+            report.TotalExecutionTime = totalStopwatch.StopAndReturnEllapsed();
+
+            // Log the persistence report
+            logger.LogDebug("{PersistenceReport}", report.ToFormattedString());
+
             foreach (var message in messages)
                 message.Dispose();
         }
@@ -95,47 +113,70 @@ public class BatchPersistenceService(
     private async Task ProcessBatchesAsync(
         List<CollectionMessageGroup> messagesPerCollectionName,
         LogCollectionCache logCollectionCache,
-        string persistedFileName)
+        string persistedFileName,
+        PersistenceReport report)
     {
         var createdTasks = new List<Task>(messagesPerCollectionName.Count);
-        
+
         foreach (var collectionGroup in messagesPerCollectionName)
         {
-            var task = Task.Run(() => ProcessBatchAsync(logCollectionCache, persistedFileName, collectionGroup));
+            var batchReport = new CollectionBatchReport
+            {
+                CollectionClientId = collectionGroup.CollectionClientId,
+                MessageCount = collectionGroup.Messages.Count
+            };
+
+            report.Batches.Add(batchReport);
+
+            var task = Task.Run(() => ProcessBatchAsync(logCollectionCache, persistedFileName, collectionGroup, batchReport));
             createdTasks.Add(task);
         }
 
         await Task.WhenAll(createdTasks);
     }
 
-    private async Task ProcessBatchAsync(LogCollectionCache logCollectionCache, string persistedFileName, CollectionMessageGroup collectionGroup)
+    private async Task ProcessBatchAsync(
+        LogCollectionCache logCollectionCache,
+        string persistedFileName,
+        CollectionMessageGroup collectionGroup,
+        CollectionBatchReport batchReport)
     {
+        var batchStopwatch = Stopwatch.StartNew();
+
         try
         {
             await PersistCollectionGroupAsync(
                 collectionGroup,
                 logCollectionCache,
-                persistedFileName);
+                persistedFileName,
+                batchReport);
 
             MarkMessagesAsSuccessful(collectionGroup.Messages);
+            batchReport.SuccessfulMessageCount = collectionGroup.Messages.Count;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to persist messages for collection {Name}", collectionGroup.CollectionClientId);
             MarkMessagesAsFailed(collectionGroup.Messages);
+            batchReport.FailedMessageCount = collectionGroup.Messages.Count;
         }
+
+        batchReport.TotalExecutionTime = batchStopwatch.StopAndReturnEllapsed();
     }
 
     private async Task PersistCollectionGroupAsync(
         CollectionMessageGroup collectionGroup,
         LogCollectionCache logCollectionCache,
-        string persistedFileName)
+        string persistedFileName,
+        CollectionBatchReport batchReport)
     {
-        
-
+        var retrieveStopwatch = Stopwatch.StartNew();
         var logCollection = await logCollectionCache.GetOrCreateByClientIdAsync(collectionGroup.CollectionClientId);
+        
+        batchReport.RetrieveLogCollection = retrieveStopwatch.StopAndReturnEllapsed();
 
         // Extract logs from messages (using pre-extracted logs where available)
+        var updateStopwatch = Stopwatch.StartNew();
         var logs = new List<Log>();
         for (int i = 0; i < collectionGroup.Messages.Count; i++)
         {
@@ -149,24 +190,31 @@ public class BatchPersistenceService(
                 logs.Add(message.Log);
             }
         }
+        
+        batchReport.UpdateLogForFileData = updateStopwatch.StopAndReturnEllapsed();
 
-        await PersistLogsAsync(collectionGroup, logCollection, logs, persistedFileName);
+        await PersistLogsAsync(collectionGroup, logCollection, logs, persistedFileName, batchReport);
     }
 
     private async Task PersistLogsAsync(
         CollectionMessageGroup collectionGroup,
         LogCollection logCollection,
         List<Log> logs,
-        string persistedFileName)
+        string persistedFileName,
+        CollectionBatchReport batchReport)
     {
+        var createJsonStopwatch = Stopwatch.StartNew();
         var jsonContent = CreateJsonContent(collectionGroup.Messages);
+        
+        batchReport.Azure.CreateJsonContent = createJsonStopwatch.StopAndReturnEllapsed();
 
         var azureTask = azureService.UploadFileAsync(
             collectionName: logCollection.TableName,
             fileName: persistedFileName,
-            content: jsonContent);
+            content: jsonContent,
+            azureReport: batchReport.Azure);
 
-        var databaseTask = databaseService.SaveLogsAsync(logCollection, logs);
+        var databaseTask = databaseService.SaveLogsAsync(logCollection, logs, batchReport.Database);
 
         await Task.WhenAll(azureTask, databaseTask);
     }
