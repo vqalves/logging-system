@@ -7,6 +7,7 @@ using LogSystem.Core.Services.Database;
 using LogSystem.WebApp.BackgroundServices.Persistence;
 using LogSystem.WebApp.Services;
 using LogSystem.WebApp.BackgroundServices.Cleanup;
+using LogSystem.Core.Metrics;
 
 var configBuilder = new LogSystemConfigurationBuilder();
 
@@ -26,6 +27,9 @@ builder.Services.AddSingleton<LogDataService>();
 builder.Services.AddSingleton<DatabaseService>();
 builder.Services.AddSingleton<BatchPersistenceService>();
 builder.Services.AddSingleton<RabbitMqPublisher>();
+
+// Register metrics
+builder.Services.AddSingleton<MessagesPerCollectionReport>();
 
 // Register caches
 builder.Services.AddSingleton<LogCollectionCache>(p =>
@@ -77,6 +81,7 @@ app.MapRazorPages();
 
 // Register LogCollection endpoints
 GetLogCollectionsEndpoint.MapEndpoint(app);
+GetCollectionMetricsEndpoint.MapEndpoint(app);
 CreateOrUpdateLogCollectionEndpoint.MapEndpoint(app);
 DeleteLogCollectionEndpoint.MapEndpoint(app);
 

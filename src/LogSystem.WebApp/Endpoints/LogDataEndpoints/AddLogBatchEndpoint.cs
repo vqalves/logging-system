@@ -30,88 +30,94 @@ public static class AddLogBatchEndpoint
                     });
                 }
 
-                byte[] bodyBytes;
+                IAsyncEnumerable<ReadOnlyMemory<byte>> messageStream;
 
                 // Check if random generation is requested
                 if (random.HasValue && random.Value > 0)
                 {
-                    // Generate random log entries
-                    var randomLogs = RandomLogGenerator.Generate(random.Value);
-                    bodyBytes = JsonSerializer.SerializeToUtf8Bytes(randomLogs);
+                    // Generate random log entries as stream
+                    messageStream = StreamRandomLogsAsync(random.Value);
                 }
                 else
                 {
-                    // Read the request body as bytes
-                    using var memoryStream = new MemoryStream();
-                    await context.Request.Body.CopyToAsync(memoryStream);
-                    bodyBytes = memoryStream.ToArray();
+                    // Stream parse JSON from request body
+                    messageStream = StreamJsonArrayItemsAsync(context.Request.Body);
+                }
 
-                    // Validate that body is not empty
-                    if (bodyBytes.Length == 0)
+                // Publish messages to RabbitMQ using streaming
+                int count = 0;
+                await foreach (var message in messageStream)
+                {
+                    try
                     {
-                        return Results.ValidationProblem(new Dictionary<string, string[]>
-                        {
-                            { "Body", new[] { "Request body is required and cannot be empty." } }
-                        });
+                        await publisher.PublishAsync(
+                            exchange: config.RabbitMqExchangeName,
+                            routingKey: config.RabbitMqRoutingKey,
+                            message: message);
+
+                        count++;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Return the count of messages published before the failure
+                        return Results.Problem(
+                            detail: $"Failed to publish message {count + 1}: {ex.Message}. Successfully published {count} messages before failure.",
+                            statusCode: 500);
                     }
                 }
 
-                // Deserialize as JSON array
-                JsonElement jsonArray;
-                try
-                {
-                    jsonArray = JsonSerializer.Deserialize<JsonElement>(bodyBytes);
-                }
-                catch (JsonException ex)
-                {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        { "Body", new[] { $"Request body must be valid JSON: {ex.Message}" } }
-                    });
-                }
-
-                // Validate it's an array
-                if (jsonArray.ValueKind != JsonValueKind.Array)
-                {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        { "Body", new[] { "Request body must be a JSON array." } }
-                    });
-                }
-
-                // Validate array is not empty
-                var arrayLength = jsonArray.GetArrayLength();
-                if (arrayLength == 0)
-                {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        { "Body", new[] { "JSON array cannot be empty." } }
-                    });
-                }
-
-                // Publish each item to RabbitMQ
-                int count = 0;
-                foreach (var item in jsonArray.EnumerateArray())
-                {
-                    // Serialize each item to bytes
-                    var itemBytes = JsonSerializer.SerializeToUtf8Bytes(item);
-
-                    // Publish to RabbitMQ
-                    await publisher.PublishAsync(
-                        exchange: config.RabbitMqExchangeName,
-                        routingKey: config.RabbitMqRoutingKey,
-                        message: itemBytes);
-
-                    count++;
-                }
-
                 return Results.Ok(new { message = "Log messages published successfully", count });
+            }
+            catch (JsonException ex)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "Body", new[] { $"Request body must be valid JSON array: {ex.Message}" } }
+                });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("empty"))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "Body", new[] { ex.Message } }
+                });
             }
             catch (Exception ex)
             {
                 return Results.Problem(detail: ex.Message, statusCode: 500);
             }
         });
+    }
+
+    private static async IAsyncEnumerable<ReadOnlyMemory<byte>> StreamJsonArrayItemsAsync(Stream bodyStream)
+    {
+        // Use JsonSerializer to deserialize stream as an array incrementally
+        var items = JsonSerializer.DeserializeAsyncEnumerable<JsonElement>(
+            bodyStream,
+            new JsonSerializerOptions { AllowTrailingCommas = true });
+
+        bool hasItems = false;
+
+        await foreach (var item in items)
+        {
+            hasItems = true;
+            yield return JsonSerializer.SerializeToUtf8Bytes(item);
+        }
+
+        // Validate that at least one item was processed
+        if (!hasItems)
+            throw new InvalidOperationException("JSON array cannot be empty.");
+    }
+
+    private static async IAsyncEnumerable<ReadOnlyMemory<byte>> StreamRandomLogsAsync(int count)
+    {
+        await Task.Yield(); // Make it truly async
+
+        for (int i = 0; i < count; i++)
+        {
+            var log = RandomLogGenerator.GenerateSingleLog();
+            yield return JsonSerializer.SerializeToUtf8Bytes(log);
+        }
     }
 
     private static class RandomLogGenerator
@@ -148,7 +154,7 @@ public static class AddLogBatchEndpoint
             return logs;
         }
 
-        private static object GenerateSingleLog()
+        public static object GenerateSingleLog()
         {
             var timestamp = GenerateRandomTimestamp();
             var level = LogLevels[Random.Shared.Next(LogLevels.Length)];
@@ -194,28 +200,32 @@ public static class AddLogBatchEndpoint
             const string alphanumeric = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
             var separators = new[] { ' ', ',', '.' };
 
-            // Calculate average word length (3-20 range, midpoint ~11.5)
-            const double averageWordLength = 11.5;
+            // Create char array with target length
+            var result = new char[targetLength];
+            int position = 0;
 
-            // Account for separators in the calculation (1 char per separator)
-            // Formula: targetLength = (wordCount * avgWordLength) + (wordCount - 1) * 1
-            int estimatedWordCount = (int)Math.Ceiling(targetLength / (averageWordLength + 1));
-
-            // Generate all words
-            var words = new string[estimatedWordCount * 2];
-            for (int i = 0; i < estimatedWordCount; i += 2)
+            // Loop through positions filling with word chunks and separators
+            while (position < targetLength)
             {
+                // Generate random word length (3-20 characters)
                 int wordLength = Random.Shared.Next(3, 21);
-                var wordChars = new char[wordLength];
 
-                for (int j = 0; j < wordLength; j++)
-                    wordChars[j] = alphanumeric[Random.Shared.Next(alphanumeric.Length)];
+                // Fill word characters
+                for (int i = 0; i < wordLength && position < targetLength; i++)
+                {
+                    result[position] = alphanumeric[Random.Shared.Next(alphanumeric.Length)];
+                    position++;
+                }
 
-                words[i] = new string(wordChars);
-                words[i + 1] = separators[Random.Shared.Next(separators.Length)].ToString();
+                // Add separator if we haven't reached the end
+                if (position < targetLength)
+                {
+                    result[position] = separators[Random.Shared.Next(separators.Length)];
+                    position++;
+                }
             }
 
-            return string.Concat(words);
+            return new string(result);
         }
     }
 }

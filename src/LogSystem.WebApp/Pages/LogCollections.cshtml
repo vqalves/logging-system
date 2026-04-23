@@ -16,25 +16,39 @@
 <table class="table table-striped" id="collections-table">
     <thead>
         <tr>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th colspan="2" style="background-color:#ccc">(10s window)</th>
+            <th></th>
+        </tr>
+        <tr>
             <th>ID</th>
             <th>Name</th>
             <th>Table Name</th>
             <th>Log Duration (Days)</th>
+            <th style="background-color:#ccc">Avg Msg/sec</th>
+            <th style="background-color:#ccc">Failed</th>
             <th>Actions</th>
         </tr>
     </thead>
     <tbody>
         <tr id="loading-row">
-            <td colspan="5" class="text-center">Loading...</td>
+            <td colspan="7" class="text-center">Loading...</td>
         </tr>
     </tbody>
 </table>
 
 @section Scripts {
     <script>
+        let metricsPollingTimeout = null;
+        let isPollingActive = true;
+
         // Load collections on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadCollections();
+            startMetricsPolling();
         });
 
         async function loadCollections() {
@@ -50,7 +64,7 @@
             } catch (error) {
                 console.error('Error loading collections:', error);
                 showError('Failed to load collections: ' + error.message);
-                document.getElementById('loading-row').innerHTML = '<td colspan="5" class="text-center text-danger">Failed to load collections</td>';
+                document.getElementById('loading-row').innerHTML = '<td colspan="7" class="text-center text-danger">Failed to load collections</td>';
             }
         }
 
@@ -58,7 +72,7 @@
             const tbody = document.querySelector('#collections-table tbody');
 
             if (collections.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center">No collections found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center">No collections found</td></tr>';
                 return;
             }
 
@@ -66,11 +80,14 @@
 
             collections.forEach(collection => {
                 const row = document.createElement('tr');
+                row.setAttribute('data-client-id', collection.clientId);
                 row.innerHTML = `
                     <td>${collection.id}</td>
                     <td>${escapeHtml(collection.name)}</td>
                     <td>${escapeHtml(collection.tableName)}</td>
                     <td>${collection.logDurationDays}</td>
+                    <td class="metric-avg-msg-sec" data-client-id="${escapeHtml(collection.clientId)}">-</td>
+                    <td class="metric-failed-count" data-client-id="${escapeHtml(collection.clientId)}">-</td>
                     <td>
                         <a href="/LogCollections/Manage/${collection.id}" class="btn btn-sm btn-primary">Edit</a>
                         <a href="/LogAttributes/${collection.id}" class="btn btn-sm btn-info">Attributes</a>
@@ -140,5 +157,90 @@
             div.textContent = text;
             return div.innerHTML;
         }
+
+        function startMetricsPolling() {
+            isPollingActive = true;
+            loadMetrics();
+        }
+
+        async function loadMetrics() {
+            if (!isPollingActive) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/log-collections/metrics');
+
+                if (!response.ok) {
+                    console.error('Failed to load metrics:', response.statusText);
+                    return;
+                }
+
+                const metrics = await response.json();
+                updateMetricsDisplay(metrics);
+            } catch (error) {
+                console.error('Error loading metrics:', error);
+            } finally {
+                // Schedule next poll only after current request completes
+                if (isPollingActive) {
+                    metricsPollingTimeout = setTimeout(loadMetrics, 5000);
+                }
+            }
+        }
+
+        function updateMetricsDisplay(metrics) {
+            // Create a map of clientId to metrics for quick lookup
+            const metricsMap = new Map();
+            metrics.forEach(metric => {
+                metricsMap.set(metric.collectionClientId, metric);
+            });
+
+            // Update all metric cells
+            document.querySelectorAll('.metric-avg-msg-sec').forEach(cell => {
+                const clientId = cell.getAttribute('data-client-id');
+                const metric = metricsMap.get(clientId);
+
+                if (metric) {
+                    cell.textContent = metric.averageMessagesPerSecond.toFixed(2);
+
+                    // Add visual indicator for active processing
+                    if (metric.averageMessagesPerSecond > 0) {
+                        cell.classList.add('text-success', 'fw-bold');
+                    } else {
+                        cell.classList.remove('text-success', 'fw-bold');
+                    }
+                } else {
+                    cell.textContent = '0.00';
+                    cell.classList.remove('text-success', 'fw-bold');
+                }
+            });
+
+            document.querySelectorAll('.metric-failed-count').forEach(cell => {
+                const clientId = cell.getAttribute('data-client-id');
+                const metric = metricsMap.get(clientId);
+
+                if (metric) {
+                    cell.textContent = metric.failedCount;
+
+                    // Add visual indicator for failures
+                    if (metric.failedCount > 0) {
+                        cell.classList.add('text-danger', 'fw-bold');
+                    } else {
+                        cell.classList.remove('text-danger', 'fw-bold');
+                    }
+                } else {
+                    cell.textContent = '0';
+                    cell.classList.remove('text-danger', 'fw-bold');
+                }
+            });
+        }
+
+        // Stop polling when page is unloaded to prevent memory leaks
+        window.addEventListener('beforeunload', function() {
+            isPollingActive = false;
+            if (metricsPollingTimeout) {
+                clearTimeout(metricsPollingTimeout);
+            }
+        });
     </script>
 }

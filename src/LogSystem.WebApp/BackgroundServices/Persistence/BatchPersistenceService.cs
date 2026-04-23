@@ -11,6 +11,7 @@ public class BatchPersistenceService(
     PersistenceBackgroundServiceConfig persistenceConfig,
     AzureService azureService,
     DatabaseService databaseService,
+    MessagesPerCollectionReport messagesPerCollectionReport,
     ILogger<BatchPersistenceService> logger)
 {
     private readonly JsonSerializerOptions JsonSerializerOptions = new JsonSerializerOptions
@@ -168,6 +169,12 @@ public class BatchPersistenceService(
         }
 
         batchReport.TotalExecutionTime = batchStopwatch.StopAndReturnEllapsed();
+
+        // Record metrics for this collection
+        messagesPerCollectionReport.RecordBatchPersistence(
+            collectionGroup.CollectionClientId,
+            batchReport.SuccessfulMessageCount,
+            batchReport.FailedMessageCount);
     }
 
     private async Task PersistCollectionGroupAsync(
