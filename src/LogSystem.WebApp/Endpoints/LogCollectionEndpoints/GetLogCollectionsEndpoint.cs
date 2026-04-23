@@ -22,7 +22,7 @@ public static class GetLogCollectionsEndpoint
                     collection.Name,
                     collection.ClientId,
                     collection.TableName,
-                    collection.LogDurationHours
+                    collection.LogDurationDays
                 ));
             }
             return Results.Ok(collections);
@@ -30,6 +30,6 @@ public static class GetLogCollectionsEndpoint
     }
 
     internal class Response() : List<ResponseItem>;
-    internal record ResponseItem(long ID, string Name, string ClientId, string TableName, long LogDurationHours);
+    internal record ResponseItem(long ID, string Name, string ClientId, string TableName, long LogDurationDays);
 }
 

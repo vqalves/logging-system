@@ -33,7 +33,7 @@ public static class CreateOrUpdateLogCollectionEndpoint
                 if (request.ID == null || request.ID == 0)
                 {
                     // Create new collection
-                    logCollection = new LogCollection(request.Name!, request.ClientId!, request.TableName!, request.LogDurationHours!.Value);
+                    logCollection = new LogCollection(request.Name!, request.ClientId!, request.TableName!, request.LogDurationDays!.Value);
                     isNewCollection = true;
                 }
                 else
@@ -44,12 +44,12 @@ public static class CreateOrUpdateLogCollectionEndpoint
                     if (existing == null)
                         return Results.NotFound(new { message = "LogCollection not found." });
 
-                    retentionChanged = existing.LogDurationHours != request.LogDurationHours!.Value;
+                    retentionChanged = existing.LogDurationDays != request.LogDurationDays!.Value;
 
                     logCollection = existing;
                     logCollection.Name = request.Name!;
                     logCollection.ClientId = request.ClientId!;
-                    logCollection.LogDurationHours = request.LogDurationHours!.Value;
+                    logCollection.LogDurationDays = request.LogDurationDays!.Value;
                 }
 
                 await databaseService.SaveLogCollectionAsync(logCollection);
@@ -116,14 +116,14 @@ public static class CreateOrUpdateLogCollectionEndpoint
                 errors.Add("TableName", new[] { "This TableName is already in use by another LogCollection." });
         }
 
-        // Validate LogDurationHours
-        if (!request.LogDurationHours.HasValue || request.LogDurationHours <= 0)
+        // Validate LogDurationDays
+        if (!request.LogDurationDays.HasValue || request.LogDurationDays <= 0)
         {
-            errors.Add("LogDurationHours", new[] { "LogDurationHours must be greater than 0." });
+            errors.Add("LogDurationDays", new[] { "LogDurationDays must be greater than 0." });
         }
 
         return errors;
     }
 
-    internal record Request(long? ID, string? Name, string? ClientId, string? TableName, long? LogDurationHours);
+    internal record Request(long? ID, string? Name, string? ClientId, string? TableName, int? LogDurationDays);
 }

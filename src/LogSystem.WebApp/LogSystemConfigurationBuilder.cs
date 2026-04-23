@@ -64,18 +64,18 @@ public class LogSystemConfigurationBuilder
     public LogSystemConfig GetLogSystemConfig()
     {
         var cacheDurationMinutesStr = GetConfigValue("SYSTEM_CACHE_DURATION_MINUTES");
-        var defaultLogDurationHoursStr = GetConfigValue("LOGCOLLECTION_DEFAULT_LOG_TTL_HOURS");
+        var defaultLogDurationDaysStr = GetConfigValue("LOGCOLLECTION_DEFAULT_LOG_TTL_DAYS");
 
         if (string.IsNullOrWhiteSpace(cacheDurationMinutesStr) || !int.TryParse(cacheDurationMinutesStr, out var cacheDurationMinutes))
             throw new InvalidOperationException($"SYSTEM_CACHE_DURATION_MINUTES value '{cacheDurationMinutesStr}' is not a valid integer");
 
-        if (string.IsNullOrWhiteSpace(defaultLogDurationHoursStr) || !long.TryParse(defaultLogDurationHoursStr, out var defaultLogDurationHours))
-            throw new InvalidOperationException($"LOGCOLLECTION_DEFAULT_LOG_TTL_HOURS value '{defaultLogDurationHoursStr}' is not a valid long");
+        if (string.IsNullOrWhiteSpace(defaultLogDurationDaysStr) || !int.TryParse(defaultLogDurationDaysStr, out var defaultLogDurationDays))
+            throw new InvalidOperationException($"LOGCOLLECTION_DEFAULT_LOG_TTL_DAYS value '{defaultLogDurationDaysStr}' is not a valid int");
 
         return new LogSystemConfig
         {
             CacheDurationMinutes = TimeSpan.FromMinutes(cacheDurationMinutes),
-            DefaultLogDurationHours = defaultLogDurationHours
+            DefaultLogDurationDays = defaultLogDurationDays
         };
     }
 
@@ -84,11 +84,15 @@ public class LogSystemConfigurationBuilder
         var rabbitMqConnectionString = GetConfigValue("RABBITMQ_CONNECTION_STRING") ?? throw new InvalidOperationException("RABBITMQ_CONNECTION_STRING not found in configuration");
         var rabbitMqQueueName = GetConfigValue("RABBITMQ_QUEUE_NAME") ?? throw new InvalidOperationException("RABBITMQ_QUEUE_NAME not found in configuration");
         var maxFrequencySecondsStr = GetConfigValue("PERSISTENCE_MAX_FREQUENCY_SECONDS");
+        var maxPersistenceBatchSizeStr = GetConfigValue("PERSISTENCE_MAX_BATCH_SIZE");
         var channelCountStr = GetConfigValue("RABBITMQ_CHANNEL_COUNT");
         var prefetchCountStr = GetConfigValue("RABBITMQ_PREFETCH_COUNT");
-
+        
         if (string.IsNullOrWhiteSpace(maxFrequencySecondsStr) || !int.TryParse(maxFrequencySecondsStr, out var maxFrequencySeconds))
             throw new InvalidOperationException($"PERSISTENCE_MAX_FREQUENCY_SECONDS value '{maxFrequencySecondsStr}' is not a valid integer");
+
+        if (string.IsNullOrWhiteSpace(maxPersistenceBatchSizeStr) || !int.TryParse(maxPersistenceBatchSizeStr, out var maxPersistenceBatchSize))
+            throw new InvalidOperationException($"PERSISTENCE_MAX_BATCH_SIZE value '{maxPersistenceBatchSizeStr}' is not a valid integer");
 
         if (string.IsNullOrWhiteSpace(channelCountStr) || !int.TryParse(channelCountStr, out var channelCount))
             throw new InvalidOperationException($"RABBITMQ_CHANNEL_COUNT value '{channelCountStr}' is not a valid integer");
@@ -101,6 +105,7 @@ public class LogSystemConfigurationBuilder
             RabbitMqConnectionString = rabbitMqConnectionString,
             RabbitMqQueueName = rabbitMqQueueName,
             MaxFrequency = TimeSpan.FromSeconds(maxFrequencySeconds),
+            MaxPersistenceBatchSize = maxPersistenceBatchSize, 
             RabbitMqChannelCount = channelCount,
             RabbitMqPrefetchCount = prefetchCount
         };

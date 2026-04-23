@@ -10,6 +10,8 @@ public class PersistenceReport
     public int MessageCount { get; set; } = 0;
     public TimeSpan TotalExecutionTime { get; set; } = TimeSpan.Zero;
     public List<CollectionBatchReport> Batches { get; set; } = new();
+    public TimeSpan PersistDuration { get; set; }
+    public TimeSpan AcknowledgementDuration { get; set; }
 
     public string ToFormattedString()
     {

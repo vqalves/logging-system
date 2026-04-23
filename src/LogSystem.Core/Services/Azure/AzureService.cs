@@ -11,6 +11,7 @@ using LogSystem.Core.Metrics;
 using System.Data;
 using System.Diagnostics;
 using System.IO.Compression;
+using Azure.Storage;
 
 namespace LogSystem.Core.Services.Azure;
 
@@ -58,6 +59,12 @@ public class AzureService
             {
                 ContentType = "application/gzip",
                 ContentEncoding = "gzip"
+            },
+
+            TransferOptions = new StorageTransferOptions
+            {
+                MaximumConcurrency = 50,
+                MaximumTransferSize = null
             }
         };
 
@@ -107,7 +114,7 @@ public class AzureService
                 {
                     Delete = new DateAfterModification
                     {
-                        DaysAfterModificationGreaterThan = logCollection.LogDurationHours / 24.0f
+                        DaysAfterModificationGreaterThan = logCollection.LogDurationDays
                     }
                 }
             })
@@ -128,7 +135,7 @@ public class AzureService
         else
         {
             if (currentPolicy.Definition.Actions.BaseBlob?.Delete != null)
-                currentPolicy.Definition.Actions.BaseBlob.Delete.DaysAfterModificationGreaterThan = logCollection.LogDurationHours / 24.0f;
+                currentPolicy.Definition.Actions.BaseBlob.Delete.DaysAfterModificationGreaterThan = logCollection.LogDurationDays;
         }
 
         await storageAccount.GetStorageAccountManagementPolicy().CreateOrUpdateAsync(WaitUntil.Completed, policyData);

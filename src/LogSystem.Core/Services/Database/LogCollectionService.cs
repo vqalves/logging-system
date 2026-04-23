@@ -14,15 +14,15 @@ public class LogCollectionService
     public async Task<long> InsertLogCollectionAsync(LogCollection logCollection, SqlConnection connection, SqlTransaction transaction)
     {
         var insertSql = @"
-            INSERT INTO [dbo].[LogCollection] ([Name], [ClientId], [TableName], [LogDurationHours])
-            VALUES (@Name, @ClientId, @TableName, @LogDurationHours);
+            INSERT INTO [dbo].[LogCollection] ([Name], [ClientId], [TableName], [LogDurationDays])
+            VALUES (@Name, @ClientId, @TableName, @LogDurationDays);
             SELECT CAST(SCOPE_IDENTITY() AS BIGINT);";
 
         using var insertCommand = new SqlCommand(insertSql, connection, transaction);
         insertCommand.Parameters.AddWithValue("@Name", logCollection.Name);
         insertCommand.Parameters.AddWithValue("@ClientId", logCollection.ClientId);
         insertCommand.Parameters.AddWithValue("@TableName", logCollection.TableName);
-        insertCommand.Parameters.AddWithValue("@LogDurationHours", logCollection.LogDurationHours);
+        insertCommand.Parameters.AddWithValue("@LogDurationDays", logCollection.LogDurationDays);
 
         var newId = await insertCommand.ExecuteScalarAsync();
         return (long)(newId ?? throw new InvalidOperationException("Failed to retrieve new LogCollection ID from database."));
@@ -32,7 +32,7 @@ public class LogCollectionService
     {
         var updateSql = @"
             UPDATE [dbo].[LogCollection]
-            SET [Name] = @Name, [ClientId] = @ClientId, [LogDurationHours] = @LogDurationHours
+            SET [Name] = @Name, [ClientId] = @ClientId, [LogDurationDays] = @LogDurationDays
             WHERE [ID] = @ID;";
 
         using var connection = new SqlConnection(DatabaseConfig.ConnectionString);
@@ -41,7 +41,7 @@ public class LogCollectionService
         using var updateCommand = new SqlCommand(updateSql, connection);
         updateCommand.Parameters.AddWithValue("@Name", logCollection.Name);
         updateCommand.Parameters.AddWithValue("@ClientId", logCollection.ClientId);
-        updateCommand.Parameters.AddWithValue("@LogDurationHours", logCollection.LogDurationHours);
+        updateCommand.Parameters.AddWithValue("@LogDurationDays", logCollection.LogDurationDays);
         updateCommand.Parameters.AddWithValue("@ID", logCollection.ID);
 
         await updateCommand.ExecuteNonQueryAsync();
@@ -145,7 +145,7 @@ public class LogCollectionService
         }
 
         var sql = @"
-            SELECT [ID], [Name], [ClientId], [TableName], [LogDurationHours]
+            SELECT [ID], [Name], [ClientId], [TableName], [LogDurationDays]
             FROM [dbo].[LogCollection]";
 
         if (whereClauses.Count > 0)
@@ -165,7 +165,8 @@ public class LogCollectionService
                 name: reader.GetString(1),
                 clientId: reader.GetString(2),
                 tableName: reader.GetString(3),
-                logDurationHours: reader.GetInt64(4));
+                logDurationDays: reader.GetInt32(4));
+
             logCollection.ID = reader.GetInt64(0);
             yield return logCollection;
         }

@@ -19,7 +19,7 @@
             <th>ID</th>
             <th>Name</th>
             <th>Table Name</th>
-            <th>Log Duration (Hours)</th>
+            <th>Log Duration (Days)</th>
             <th>Actions</th>
         </tr>
     </thead>
@@ -70,7 +70,7 @@
                     <td>${collection.id}</td>
                     <td>${escapeHtml(collection.name)}</td>
                     <td>${escapeHtml(collection.tableName)}</td>
-                    <td>${collection.logDurationHours}</td>
+                    <td>${collection.logDurationDays}</td>
                     <td>
                         <a href="/LogCollections/Manage/${collection.id}" class="btn btn-sm btn-primary">Edit</a>
                         <a href="/LogAttributes/${collection.id}" class="btn btn-sm btn-info">Attributes</a>

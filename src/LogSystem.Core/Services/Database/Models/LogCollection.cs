@@ -11,9 +11,9 @@ public class LogCollection
     public string Name { get; set; }
     public string ClientId { get; set; }
     public string TableName { get; }
-    public long LogDurationHours { get; set; }
+    public int LogDurationDays { get; set; }
 
-    public LogCollection(string name, string clientId, string tableName, long logDurationHours)
+    public LogCollection(string name, string clientId, string tableName, int logDurationDays)
     {
         if (!TryValidateClientId(clientId, out var errorMessage))
             throw new ArgumentException(errorMessage, nameof(clientId));
@@ -24,7 +24,7 @@ public class LogCollection
         Name = name;
         ClientId = clientId;
         TableName = tableName;
-        LogDurationHours = logDurationHours;
+        LogDurationDays = logDurationDays;
     }
 
     public static bool TryValidateClientId(string clientId, out string? errorMessage)

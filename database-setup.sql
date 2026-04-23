@@ -52,7 +52,7 @@ GO
 --   Name              - Human-readable name of the log collection
 --   ClientId          - Unique client identifier (business key)
 --   TableName         - Name of the dynamic log table (e.g., "Logs_SystemA")
---   LogDurationHours  - Number of hours to retain logs before expiration
+--   LogDurationDays   - Number of days to retain logs before expiration
 --
 -- Relationships:
 --   Referenced by LogCollectionAttribute (one-to-many)
@@ -66,7 +66,7 @@ BEGIN
         [Name]              NVARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
         [ClientId]          VARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
         [TableName]         NVARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-        [LogDurationHours]  BIGINT NOT NULL,
+        [LogDurationDays]   INT NOT NULL,
 
         CONSTRAINT [PK_LogCollection] PRIMARY KEY CLUSTERED ([ID] ASC)
     );

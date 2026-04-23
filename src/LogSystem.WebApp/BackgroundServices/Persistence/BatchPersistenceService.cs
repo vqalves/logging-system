@@ -52,6 +52,7 @@ public class BatchPersistenceService(
 
             var persistedFileName = $"{batchStartTime:yyyyMMddHHmmss}.json.gzip";
 
+            var persistStopwatch = Stopwatch.StartNew();
             try
             {
                 await ProcessBatchesAsync(messagesPerCollectionName, logCollectionCache, persistedFileName, report);
@@ -61,6 +62,9 @@ public class BatchPersistenceService(
                 logger.LogError(ex, "Error persisting batch");
             }
 
+            report.PersistDuration = persistStopwatch.StopAndReturnEllapsed();
+
+            var ackStopwatch = Stopwatch.StartNew();
             try
             {
                 await HandleMessageAcknowledgmentsAsync(messages);
@@ -69,6 +73,8 @@ public class BatchPersistenceService(
             {
                 logger.LogError(ex, "Error acknowleding messages");
             }
+
+            report.AcknowledgementDuration = ackStopwatch.StopAndReturnEllapsed();
 
             report.TotalExecutionTime = totalStopwatch.StopAndReturnEllapsed();
 
@@ -96,7 +102,7 @@ public class BatchPersistenceService(
     {
         var messages = new List<ReceivedMessageModel>();
 
-        while (messageChannel.Reader.TryRead(out var message))
+        while (messages.Count < persistenceConfig.MaxPersistenceBatchSize && messageChannel.Reader.TryRead(out var message))
             messages.Add(message);
 
         return messages;
@@ -250,12 +256,12 @@ public class BatchPersistenceService(
 
             if (successfulMessages.Count == channelMessages.Count)
             {
-                var highestDeliveryTag = messages.Max(m => m.DeliveryTag);
+                var highestDeliveryTag = channelGroup.Max(m => m.DeliveryTag);
                 await channelGroup.Key.BasicAckAsync(deliveryTag: highestDeliveryTag, multiple: true);
             }
             else if (failedMessages.Count == channelMessages.Count)
             {
-                var highestDeliveryTag = messages.Max(m => m.DeliveryTag);
+                var highestDeliveryTag = channelGroup.Max(m => m.DeliveryTag);
                 await channelGroup.Key.BasicNackAsync(deliveryTag: highestDeliveryTag, multiple: true, requeue: false);
             }
             else

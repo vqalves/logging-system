@@ -1,7 +1,9 @@
 
+using LogSystem.Core.Metrics;
 using LogSystem.Core.Services.Database;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using System.Diagnostics;
 using System.Text;
 using System.Threading.Channels;
 
@@ -20,9 +22,11 @@ public class PersistenceBackgroundService(
 
         var messageChannel = Channel.CreateUnbounded<ReceivedMessageModel>(new UnboundedChannelOptions
         {
-            SingleReader = true,
+            SingleReader = false,
             SingleWriter = false
         });
+
+        var messageReceivedReport = new MessageReceivedReport(logger);
 
         IConnection? rabbitConnection = null;
         var rabbitChannels = new List<IChannel>();
@@ -43,6 +47,7 @@ public class PersistenceBackgroundService(
             for (int i = 0; i < persistenceConfig.RabbitMqChannelCount; i++)
             {
                 var channelIndex = i;
+                var channelId = $"Channel-{i + 1}";
                 try
                 {
                     var rabbitChannel = await rabbitConnection.CreateChannelAsync();
@@ -59,6 +64,7 @@ public class PersistenceBackgroundService(
 
                     consumer.ReceivedAsync += async (model, ea) =>
                     {
+                        var stopwatch = Stopwatch.StartNew();
                         bool success = false;
 
                         try
@@ -94,6 +100,10 @@ public class PersistenceBackgroundService(
                             logger.LogError(ex, "Error receiving message on channel {ChannelIndex}", channelIndex);
                             success = false;
                         }
+                        finally
+                        {
+                            messageReceivedReport.RecordMessage(channelId, stopwatch.StopAndReturnEllapsed(), success);
+                        }
 
                         if (!success)
                         {
@@ -108,7 +118,8 @@ public class PersistenceBackgroundService(
                     await rabbitChannel.BasicConsumeAsync(
                         queue: persistenceConfig.RabbitMqQueueName,
                         autoAck: false,
-                        consumer: consumer);
+                        consumer: consumer,
+                        cancellationToken: stoppingToken);
                 }
                 catch (Exception ex)
                 {
@@ -121,8 +132,12 @@ public class PersistenceBackgroundService(
 
             logger.LogInformation("Successfully started {Count} out of {Total} channels", rabbitChannels.Count, persistenceConfig.RabbitMqChannelCount);
 
+            // Start background reporting task
+            var reportingTask = StartRecordingReportAsync(messageReceivedReport, stoppingToken);
+            var messageTask = batchPersistenceService.ProcessMessagesAsync(messageChannel, logCollectionCache, stoppingToken);
+
             // Process messages until cancellation
-            await batchPersistenceService.ProcessMessagesAsync(messageChannel, logCollectionCache, stoppingToken);
+            await Task.WhenAll(reportingTask, messageTask);
         }
         catch (OperationCanceledException)
         {
@@ -167,6 +182,27 @@ public class PersistenceBackgroundService(
             }
 
             logger.LogInformation("PersistenceBackgroundService stopped");
+        }
+    }
+
+    private async Task StartRecordingReportAsync(MessageReceivedReport messageReceivedReport, CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+                messageReceivedReport.WriteReportIfNeeded();
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when stopping
+                break;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error writing message received report");
+            }
         }
     }
 }

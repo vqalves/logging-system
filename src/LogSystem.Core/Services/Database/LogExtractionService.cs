@@ -10,7 +10,7 @@ public class LogExtractionService
         // Create new Log instance with source information and calculated expiration
         var log = new Log
         {
-            ValidUntilUtc = DateTime.UtcNow.AddHours(logCollection.LogDurationHours),
+            ValidUntilUtc = DateTime.UtcNow.AddDays(logCollection.LogDurationDays),
             Attributes = new Dictionary<string, object>()
         };
 

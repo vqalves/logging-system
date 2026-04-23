@@ -81,9 +81,6 @@ public class CleanupBackgroundService(
         {
             var totalRowsDeleted = 0;
 
-            logger.LogDebug("Starting cleanup for LogCollection {ClientId} (Table: {TableName})",
-                logCollection.ClientId, logCollection.TableName);
-
             while (!stoppingToken.IsCancellationRequested)
             {
                 // Delete in batches using the database service
@@ -99,7 +96,7 @@ public class CleanupBackgroundService(
 
             if (totalRowsDeleted > 0)
             {
-                logger.LogInformation("Cleanup completed for LogCollection {ClientId}: {RowsDeleted} rows deleted",
+                logger.LogDebug("Cleanup completed for LogCollection {ClientId}: {RowsDeleted} rows deleted",
                     logCollection.ClientId, totalRowsDeleted);
             }
         }

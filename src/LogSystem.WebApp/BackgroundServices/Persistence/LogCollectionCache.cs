@@ -79,7 +79,7 @@ public class LogCollectionCache
             name: collectionName,
             clientId: collectionName,
             tableName: $"{collectionName}",
-            logDurationHours: LogSystemConfig.DefaultLogDurationHours);
+            logDurationDays: LogSystemConfig.DefaultLogDurationDays);
 
         // Save to database
         await DatabaseService.SaveLogCollectionAsync(newLogCollection); 
