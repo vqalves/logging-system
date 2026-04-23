@@ -8,6 +8,8 @@ using LogSystem.WebApp.BackgroundServices.Persistence;
 using LogSystem.WebApp.Services;
 using LogSystem.WebApp.BackgroundServices.Cleanup;
 using LogSystem.Core.Metrics;
+using System.Threading.Channels;
+using LogSystem.WebApp.BackgroundServices.Persistence.DefaultMessageReceiver;
 
 var configBuilder = new LogSystemConfigurationBuilder();
 
@@ -25,11 +27,17 @@ builder.Services.AddSingleton<LogAttributeService>();
 builder.Services.AddSingleton<LogCollectionService>();
 builder.Services.AddSingleton<LogDataService>();
 builder.Services.AddSingleton<DatabaseService>();
-builder.Services.AddSingleton<BatchPersistenceService>();
 builder.Services.AddSingleton<RabbitMqPublisher>();
 
 // Register metrics
 builder.Services.AddSingleton<MessagesPerCollectionReport>();
+
+// Register Channel for message processing
+builder.Services.AddSingleton(Channel.CreateUnbounded<IReceivedMessageModel>(new UnboundedChannelOptions
+{
+    SingleReader = false,
+    SingleWriter = false
+}));
 
 // Register caches
 builder.Services.AddSingleton<LogCollectionCache>(p =>
@@ -56,7 +64,8 @@ builder.Services.AddSingleton<LogAttributeCache>(p =>
 });
 
 // Register background services
-builder.Services.AddHostedService<PersistenceBackgroundService>();
+builder.Services.AddHostedService<MessageReceiverService>();
+builder.Services.AddHostedService<BatchPersistenceService>();
 builder.Services.AddHostedService<CleanupBackgroundService>();
 
 

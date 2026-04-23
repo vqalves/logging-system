@@ -7,24 +7,18 @@ using System.Diagnostics;
 using System.Text;
 using System.Threading.Channels;
 
-namespace LogSystem.WebApp.BackgroundServices.Persistence;
+namespace LogSystem.WebApp.BackgroundServices.Persistence.DefaultMessageReceiver;
 
-public class PersistenceBackgroundService(
+public class MessageReceiverService(
     PersistenceBackgroundServiceConfig persistenceConfig,
-    BatchPersistenceService batchPersistenceService,
+    Channel<IReceivedMessageModel> messageChannel,
     LogCollectionCache logCollectionCache,
     LogAttributeCache logAttributeCache,
-    ILogger<PersistenceBackgroundService> logger) : BackgroundService
+    ILogger<MessageReceiverService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("PersistenceBackgroundService starting with {ChannelCount} channels...", persistenceConfig.RabbitMqChannelCount);
-
-        var messageChannel = Channel.CreateUnbounded<ReceivedMessageModel>(new UnboundedChannelOptions
-        {
-            SingleReader = false,
-            SingleWriter = false
-        });
+        logger.LogInformation("MessageReceiverService starting with {ChannelCount} channels...", persistenceConfig.RabbitMqChannelCount);
 
         var messageReceivedReport = new MessageReceivedReport(logger);
 
@@ -72,12 +66,12 @@ public class PersistenceBackgroundService(
                             var body = ea.Body.ToArray();
                             var payload = Encoding.UTF8.GetString(body);
 
-                            var receivedMessage = new ReceivedMessageModel
+                            var receivedMessage = new DefaultReceivedMessageModel
                             {
                                 Channel = rabbitChannel,
                                 DeliveryTag = ea.DeliveryTag,
                                 Payload = payload,
-                                Status = ReceivedMessageModel.PersistenceStatus.Pending
+                                Status = IReceivedMessageModel.PersistenceStatus.Pending
                             };
 
                             var logCollectionName = receivedMessage.GetLogCollectionClientId();
@@ -90,7 +84,7 @@ public class PersistenceBackgroundService(
                             receivedMessage.Log = extractionService.Extract(
                                 logCollection: logCollection,
                                 attributes: attributesList,
-                                contentAsJsonDocument: receivedMessage.GetJsonDocument);
+                                contentAsJsonDocument: receivedMessage.GetPayloadAsJsonDocument);
 
                             await messageChannel.Writer.WriteAsync(receivedMessage, stoppingToken);
                             success = true;
@@ -133,19 +127,15 @@ public class PersistenceBackgroundService(
             logger.LogInformation("Successfully started {Count} out of {Total} channels", rabbitChannels.Count, persistenceConfig.RabbitMqChannelCount);
 
             // Start background reporting task
-            var reportingTask = StartRecordingReportAsync(messageReceivedReport, stoppingToken);
-            var messageTask = batchPersistenceService.ProcessMessagesAsync(messageChannel, logCollectionCache, stoppingToken);
-
-            // Process messages until cancellation
-            await Task.WhenAll(reportingTask, messageTask);
+            await StartRecordingReportAsync(messageReceivedReport, stoppingToken);
         }
         catch (OperationCanceledException)
         {
-            logger.LogInformation("PersistenceBackgroundService is stopping due to cancellation");
+            logger.LogInformation("MessageReceiverService is stopping due to cancellation");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Fatal error in PersistenceBackgroundService");
+            logger.LogError(ex, "Fatal error in MessageReceiverService");
             throw;
         }
         finally
@@ -181,7 +171,7 @@ public class PersistenceBackgroundService(
                 }
             }
 
-            logger.LogInformation("PersistenceBackgroundService stopped");
+            logger.LogInformation("MessageReceiverService stopped");
         }
     }
 

@@ -4,15 +4,18 @@ using LogSystem.Core.Metrics;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.Channels;
+using LogSystem.WebApp.BackgroundServices.Persistence.DefaultMessageReceiver;
 
 namespace LogSystem.WebApp.BackgroundServices.Persistence;
 
 public class BatchPersistenceService(
     PersistenceBackgroundServiceConfig persistenceConfig,
+    Channel<IReceivedMessageModel> messageChannel,
+    LogCollectionCache logCollectionCache,
     AzureService azureService,
     DatabaseService databaseService,
     MessagesPerCollectionReport messagesPerCollectionReport,
-    ILogger<BatchPersistenceService> logger)
+    ILogger<BatchPersistenceService> logger) : BackgroundService
 {
     private readonly char[] AvailableRandomizedCharacters = "abcdefghijklmnopqrstuvwxyz0123456789".ToCharArray();
 
@@ -32,10 +35,7 @@ public class BatchPersistenceService(
         return new string(result);
     }
 
-    public async Task ProcessMessagesAsync(
-        Channel<ReceivedMessageModel> messageChannel,
-        LogCollectionCache logCollectionCache,
-        CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         DateTime? lastExecution = null;
 
@@ -112,9 +112,9 @@ public class BatchPersistenceService(
         }
     }
 
-    private List<ReceivedMessageModel> ReadAvailableMessages(Channel<ReceivedMessageModel> messageChannel)
+    private List<IReceivedMessageModel> ReadAvailableMessages(Channel<IReceivedMessageModel> messageChannel)
     {
-        var messages = new List<ReceivedMessageModel>();
+        var messages = new List<IReceivedMessageModel>();
 
         while (messages.Count < persistenceConfig.MaxPersistenceBatchSize && messageChannel.Reader.TryRead(out var message))
             messages.Add(message);
@@ -122,7 +122,7 @@ public class BatchPersistenceService(
         return messages;
     }
 
-    private List<CollectionMessageGroup> GroupMessagesByCollection(List<ReceivedMessageModel> messages)
+    private List<CollectionMessageGroup> GroupMessagesByCollection(List<IReceivedMessageModel> messages)
     {
         return messages
             .GroupBy(x => x.GetLogCollectionClientId())
@@ -207,14 +207,12 @@ public class BatchPersistenceService(
         for (int i = 0; i < collectionGroup.Messages.Count; i++)
         {
             var message = collectionGroup.Messages[i];
-
-            if (message.Log != null)
-            {
-                // Update source file information for batch persistence
-                message.Log.SourceFileIndex = i;
-                message.Log.SourceFileName = persistedFileName;
-                logs.Add(message.Log);
-            }
+            var log = message.GetLog();
+            
+            // Update source file information for batch persistence
+            log.SourceFileIndex = i;
+            log.SourceFileName = persistedFileName;
+            logs.Add(log);
         }
         
         batchReport.UpdateLogForFileData = updateStopwatch.StopAndReturnEllapsed();
@@ -245,54 +243,55 @@ public class BatchPersistenceService(
         await Task.WhenAll(azureTask, databaseTask);
     }
 
-    private string CreateJsonContent(List<ReceivedMessageModel> messages)
+    private string CreateJsonContent(List<IReceivedMessageModel> messages)
     {
-        var jsonArray = messages.Select(m => m.Payload).ToList();
+        var jsonArray = messages.Select(m => m.GetPayloadAsString()).ToList();
 
         return JsonSerializer.Serialize(jsonArray, JsonSerializerOptions);
     }
 
-    private void MarkMessagesAsSuccessful(List<ReceivedMessageModel> messages)
+    private void MarkMessagesAsSuccessful(List<IReceivedMessageModel> messages)
     {
         foreach (var msg in messages)
-            msg.Status = ReceivedMessageModel.PersistenceStatus.Persisted;
+            msg.Status = IReceivedMessageModel.PersistenceStatus.Persisted;
     }
 
-    private void MarkMessagesAsFailed(List<ReceivedMessageModel> messages)
+    private void MarkMessagesAsFailed(List<IReceivedMessageModel> messages)
     {
         foreach (var msg in messages)
-            msg.Status = ReceivedMessageModel.PersistenceStatus.Failed;
+            msg.Status = IReceivedMessageModel.PersistenceStatus.Failed;
     }
 
-    private async Task HandleMessageAcknowledgmentsAsync(List<ReceivedMessageModel> messages)
+    private async Task HandleMessageAcknowledgmentsAsync(List<IReceivedMessageModel> messages)
     {
-        var messagesByChannel = messages.GroupBy(m => m.Channel).ToList();
+        var messagesByChannel = messages.GroupBy(m => m.GetRabbitChannel()).ToList();
 
         foreach (var channelGroup in messagesByChannel)
         {
             var channelMessages = channelGroup.ToList();
-            var successfulMessages = channelMessages.Where(m => m.Status == ReceivedMessageModel.PersistenceStatus.Persisted).ToList();
-            var failedMessages = channelMessages.Where(m => m.Status == ReceivedMessageModel.PersistenceStatus.Failed).ToList();
+            var successfulMessages = channelMessages.Where(m => m.Status == IReceivedMessageModel.PersistenceStatus.Persisted).ToList();
+            var failedMessages = channelMessages.Where(m => m.Status == IReceivedMessageModel.PersistenceStatus.Failed).ToList();
 
             if (successfulMessages.Count == channelMessages.Count)
             {
-                var highestDeliveryTag = channelGroup.Max(m => m.DeliveryTag);
+                var highestDeliveryTag = channelGroup.Max(m => m.GetRabbitMqDeliveryTag());
                 await channelGroup.Key.BasicAckAsync(deliveryTag: highestDeliveryTag, multiple: true);
             }
             else if (failedMessages.Count == channelMessages.Count)
             {
-                var highestDeliveryTag = channelGroup.Max(m => m.DeliveryTag);
+                var highestDeliveryTag = channelGroup.Max(m => m.GetRabbitMqDeliveryTag());
                 await channelGroup.Key.BasicNackAsync(deliveryTag: highestDeliveryTag, multiple: true, requeue: false);
             }
             else
             {
                 foreach (var msg in successfulMessages)
-                    await msg.Channel.BasicAckAsync(deliveryTag: msg.DeliveryTag, multiple: false);
+                    await channelGroup.Key.BasicAckAsync(deliveryTag: msg.GetRabbitMqDeliveryTag(), multiple: false);
 
                 foreach (var msg in failedMessages)
-                    await msg.Channel.BasicNackAsync(deliveryTag: msg.DeliveryTag, multiple: false, requeue: false);
+                    await channelGroup.Key.BasicNackAsync(deliveryTag: msg.GetRabbitMqDeliveryTag(), multiple: false, requeue: false);
             }
         }
     }
-    private record CollectionMessageGroup(string CollectionClientId, List<ReceivedMessageModel> Messages);
+    
+    private record CollectionMessageGroup(string CollectionClientId, List<IReceivedMessageModel> Messages);
 }
