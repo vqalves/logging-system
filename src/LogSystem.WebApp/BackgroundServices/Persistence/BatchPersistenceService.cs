@@ -14,10 +14,23 @@ public class BatchPersistenceService(
     MessagesPerCollectionReport messagesPerCollectionReport,
     ILogger<BatchPersistenceService> logger)
 {
+    private readonly char[] AvailableRandomizedCharacters = "abcdefghijklmnopqrstuvwxyz0123456789".ToCharArray();
+
     private readonly JsonSerializerOptions JsonSerializerOptions = new JsonSerializerOptions
     {
         WriteIndented = false,
     };
+
+    
+    private string GenerateRandomizedString(int size)
+    {
+        char[] result = new char[size];
+
+        for(var i = 0; i < result.Length; i++)
+            result[i] = AvailableRandomizedCharacters[Random.Shared.Next(0, AvailableRandomizedCharacters.Length)];
+
+        return new string(result);
+    }
 
     public async Task ProcessMessagesAsync(
         Channel<ReceivedMessageModel> messageChannel,
@@ -51,7 +64,7 @@ public class BatchPersistenceService(
             
             report.GroupingByCollectionName = groupingStopwatch.StopAndReturnEllapsed();
 
-            var persistedFileName = $"{batchStartTime:yyyyMMddHHmmss}.json.gzip";
+            var persistedFileName = $"{batchStartTime:yyMMddHHmmss}_{GenerateRandomizedString(6)}.json.gzip";
 
             var persistStopwatch = Stopwatch.StartNew();
             try
