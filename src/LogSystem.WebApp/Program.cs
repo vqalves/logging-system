@@ -5,11 +5,12 @@ using LogSystem.WebApp.Endpoints.LogDataEndpoints;
 using LogSystem.Core.Services.Azure;
 using LogSystem.Core.Services.Database;
 using LogSystem.WebApp.BackgroundServices.Persistence;
-using LogSystem.WebApp.Services;
+using LogSystem.Core.Services.RabbitMq;
 using LogSystem.WebApp.BackgroundServices.Cleanup;
 using LogSystem.Core.Metrics;
 using System.Threading.Channels;
 using LogSystem.WebApp.BackgroundServices.Persistence.DefaultMessageReceiver;
+using LogSystem.Core.Caching;
 
 var configBuilder = new LogSystemConfigurationBuilder();
 
@@ -43,12 +44,14 @@ builder.Services.AddSingleton(Channel.CreateUnbounded<IReceivedMessageModel>(new
 builder.Services.AddSingleton<LogCollectionCache>(p =>
 {
     var databaseService = p.GetRequiredService<DatabaseService>();
+    var azureService = p.GetRequiredService<AzureService>();
     var logSystemConfig = p.GetRequiredService<LogSystemConfig>();
 
     return new LogCollectionCache(
         cacheDuration: logSystemConfig.CacheDurationMinutes,
         databaseService: databaseService,
-        logSystemConfig: logSystemConfig
+        logSystemConfig: logSystemConfig,
+        azureService: azureService
     );
 });
 
@@ -64,7 +67,7 @@ builder.Services.AddSingleton<LogAttributeCache>(p =>
 });
 
 // Register background services
-builder.Services.AddHostedService<MessageReceiverService>();
+builder.Services.AddHostedService<DefaultMessageReceiverBackgroundService>();
 builder.Services.AddHostedService<BatchPersistenceService>();
 builder.Services.AddHostedService<CleanupBackgroundService>();
 

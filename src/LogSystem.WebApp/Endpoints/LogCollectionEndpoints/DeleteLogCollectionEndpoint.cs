@@ -1,5 +1,5 @@
 using LogSystem.Core.Services.Database;
-using LogSystem.WebApp.BackgroundServices.Persistence;
+using LogSystem.Core.Caching;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LogSystem.WebApp.Endpoints.LogCollectionEndpoints;

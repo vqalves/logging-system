@@ -2,7 +2,7 @@
 using System.Collections.Concurrent;
 using LogSystem.Core.Services.Database;
 
-namespace LogSystem.WebApp.BackgroundServices.Persistence;
+namespace LogSystem.Core.Caching;
 
 public class LogAttributeCache
 {

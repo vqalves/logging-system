@@ -1,22 +1,25 @@
 
 using System.Collections.Concurrent;
+using LogSystem.Core.Services.Azure;
 using LogSystem.Core.Services.Database;
 
-namespace LogSystem.WebApp.BackgroundServices.Persistence;
+namespace LogSystem.Core.Caching;
 
 public class LogCollectionCache
 {
     private readonly TimeSpan CacheDuration;
     private readonly DatabaseService DatabaseService;
+    private readonly AzureService AzureService;
     private readonly ConcurrentDictionary<string, CacheEntry<LogCollection>> Cache = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> LoadLocks = new();
     private readonly LogSystemConfig LogSystemConfig;
 
-    public LogCollectionCache(TimeSpan cacheDuration, DatabaseService databaseService, LogSystemConfig logSystemConfig)
+    public LogCollectionCache(TimeSpan cacheDuration, DatabaseService databaseService, LogSystemConfig logSystemConfig, AzureService azureService)
     {
         CacheDuration = cacheDuration;
         DatabaseService = databaseService;
         LogSystemConfig = logSystemConfig;
+        AzureService = azureService;
     }
 
     private string GenerateCacheKey(string clientId)
@@ -53,7 +56,10 @@ public class LogCollectionCache
 
             // If not found in database, execute the onNotFound callback
             if (logCollection == null)
+            {
                 logCollection = await CreateLogCollectionAsync(clientId);
+                await AzureService.SaveLifecyclePolicyAsync(logCollection);
+            }
 
             // Create new cache entry with creation timestamp
             var newEntry = new CacheEntry<LogCollection>
@@ -82,7 +88,7 @@ public class LogCollectionCache
             logDurationDays: LogSystemConfig.DefaultLogDurationDays);
 
         // Save to database
-        await DatabaseService.SaveLogCollectionAsync(newLogCollection); 
+        await DatabaseService.SaveLogCollectionAsync(newLogCollection);
 
         // Timestamp
         var timestampAttribute = new LogAttribute(

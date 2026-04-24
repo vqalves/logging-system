@@ -1,4 +1,4 @@
-using LogSystem.WebApp.Services;
+using LogSystem.Core.Services.RabbitMq;
 
 namespace LogSystem.WebApp.Endpoints.LogDataEndpoints;
 

@@ -1,6 +1,6 @@
 using LogSystem.Core.Services.Azure;
 using LogSystem.Core.Services.Database;
-using LogSystem.WebApp.BackgroundServices.Persistence;
+using LogSystem.Core.Caching;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LogSystem.WebApp.Endpoints.LogCollectionEndpoints;
@@ -26,7 +26,7 @@ public static class CreateOrUpdateLogCollectionEndpoint
 
             try
             {
-                Core.Services.Database.LogCollection logCollection;
+                LogCollection logCollection;
                 bool isNewCollection = false;
                 bool retentionChanged = false;
 
@@ -55,7 +55,7 @@ public static class CreateOrUpdateLogCollectionEndpoint
                 await databaseService.SaveLogCollectionAsync(logCollection);
 
                 if(isNewCollection || retentionChanged)
-                    await azureService.SaveLifecyclePolicyAsync(azureService, logCollection);
+                    await azureService.SaveLifecyclePolicyAsync(logCollection);
 
                 // Invalidate cache
                 cache.InvalidateCache(logCollection);
@@ -89,7 +89,7 @@ public static class CreateOrUpdateLogCollectionEndpoint
         }
 
         // Validate ClientId using static validation method
-        if (!Core.Services.Database.LogCollection.TryValidateClientId(request.ClientId ?? "", out var clientIdError))
+        if (!LogCollection.TryValidateClientId(request.ClientId ?? "", out var clientIdError))
         {
             errors.Add("ClientId", new[] { clientIdError! });
         }
@@ -103,7 +103,7 @@ public static class CreateOrUpdateLogCollectionEndpoint
         }
 
         // Validate TableName using static validation method
-        if (!Core.Services.Database.LogCollection.TryValidateTableName(request.TableName ?? "", out var tableNameError))
+        if (!LogCollection.TryValidateTableName(request.TableName ?? "", out var tableNameError))
         {
             errors.Add("TableName", new[] { tableNameError! });
         }

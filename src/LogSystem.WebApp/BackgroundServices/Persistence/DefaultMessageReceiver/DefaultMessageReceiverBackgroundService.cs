@@ -6,15 +6,17 @@ using RabbitMQ.Client.Events;
 using System.Diagnostics;
 using System.Text;
 using System.Threading.Channels;
+using LogSystem.Core.Caching;
+using System.Text.Json;
 
 namespace LogSystem.WebApp.BackgroundServices.Persistence.DefaultMessageReceiver;
 
-public class MessageReceiverService(
+public class DefaultMessageReceiverBackgroundService(
     PersistenceBackgroundServiceConfig persistenceConfig,
     Channel<IReceivedMessageModel> messageChannel,
     LogCollectionCache logCollectionCache,
     LogAttributeCache logAttributeCache,
-    ILogger<MessageReceiverService> logger) : BackgroundService
+    ILogger<DefaultMessageReceiverBackgroundService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.Channels;
 using LogSystem.WebApp.BackgroundServices.Persistence.DefaultMessageReceiver;
+using LogSystem.Core.Caching;
 
 namespace LogSystem.WebApp.BackgroundServices.Persistence;
 

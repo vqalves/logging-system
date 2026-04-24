@@ -1,5 +1,5 @@
 
-namespace LogSystem.WebApp.BackgroundServices.Persistence;
+namespace LogSystem.Core.Caching;
 
 public class LogSystemConfig
 {

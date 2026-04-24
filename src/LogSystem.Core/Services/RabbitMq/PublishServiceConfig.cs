@@ -1,5 +1,5 @@
 
-namespace LogSystem.WebApp.Services;
+namespace LogSystem.Core.Services.RabbitMq;
 
 public class PublishServiceConfig
 {

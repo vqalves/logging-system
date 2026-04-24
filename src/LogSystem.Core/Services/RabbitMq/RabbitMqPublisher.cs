@@ -1,6 +1,7 @@
 using RabbitMQ.Client;
+using Microsoft.Extensions.Logging;
 
-namespace LogSystem.WebApp.Services;
+namespace LogSystem.Core.Services.RabbitMq;
 
 public class RabbitMqPublisher : IAsyncDisposable, IDisposable
 {

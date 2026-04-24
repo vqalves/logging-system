@@ -12,6 +12,7 @@ using System.Data;
 using System.Diagnostics;
 using System.IO.Compression;
 using Azure.Storage;
+using System.Text;
 
 namespace LogSystem.Core.Services.Azure;
 
@@ -38,16 +39,19 @@ public class AzureService
 
         // Compress content using GZipStream to byte array
         var compressStopwatch = Stopwatch.StartNew();
-        byte[] compressedContent;
-        using (var outputStream = new MemoryStream())
+
+        using var outputStream = new MemoryStream();
         {
-            using (var gzipStream = new GZipStream(outputStream, CompressionMode.Compress, leaveOpen: true))
-
-            using (var writer = new StreamWriter(gzipStream))
+            var bytes = Encoding.UTF8.GetBytes(content);
+            
+            using var gzipStream = new GZipStream(outputStream, CompressionLevel.SmallestSize, leaveOpen: true);
+            using var writer = new StreamWriter(gzipStream, Encoding.UTF8);
+            {
                 await writer.WriteAsync(content);
-
-            compressedContent = outputStream.ToArray();
+                await writer.FlushAsync();
+            }
         }
+
         azureReport.CompressToGzip = compressStopwatch.StopAndReturnEllapsed();
 
         // Upload compressed content to blob with metadata
@@ -69,31 +73,33 @@ public class AzureService
         };
 
         var uploadStopwatch = Stopwatch.StartNew();
+        
         try
         {
-            using (var contentStream = new MemoryStream(compressedContent))
-                await blobClient.UploadAsync(contentStream, uploadOptions);
+            outputStream.Position = 0;
+            await blobClient.UploadAsync(outputStream, uploadOptions);
         }
         catch (RequestFailedException ex) when (ex.ErrorCode == "ContainerNotFound")
         {
             // Container doesn't exist, create it and retry upload
             await containerClient.CreateIfNotExistsAsync();
 
-            using (var contentStream = new MemoryStream(compressedContent))
-                await blobClient.UploadAsync(contentStream, uploadOptions);
+            outputStream.Position = 0;
+            await blobClient.UploadAsync(outputStream, uploadOptions);
         }
+
         azureReport.UploadFile = uploadStopwatch.StopAndReturnEllapsed();
         azureReport.TotalExecutionTime = totalStopwatch.StopAndReturnEllapsed();
     }
 
-    public async Task SaveLifecyclePolicyAsync(AzureService azureService, LogCollection logCollection)
+    public async Task SaveLifecyclePolicyAsync(LogCollection logCollection)
     {
         var policyName = $"logcollection-{logCollection.TableName}-lifecycle";
 
         // Create or update Azure lifecycle policy
-        var armClient = azureService.GetArmClient();
-        var storageAccount = await azureService.GetStorageAccountAsync(armClient);
-        var managementPolicy = await azureService.GetManagementPolicyAsync(storageAccount);
+        var armClient = GetArmClient();
+        var storageAccount = await GetStorageAccountAsync(armClient);
+        var managementPolicy = await GetManagementPolicyAsync(storageAccount);
 
         var policyData = managementPolicy?.Data;
         var currentPolicy = policyData?.Rules.FirstOrDefault(r => r.Name == policyName);
@@ -114,7 +120,8 @@ public class AzureService
                 {
                     Delete = new DateAfterModification
                     {
-                        DaysAfterModificationGreaterThan = logCollection.LogDurationDays
+                        DaysAfterCreationGreaterThan = logCollection.LogDurationDays,
+                        DaysAfterModificationGreaterThan = null
                     }
                 }
             })
@@ -135,7 +142,10 @@ public class AzureService
         else
         {
             if (currentPolicy.Definition.Actions.BaseBlob?.Delete != null)
-                currentPolicy.Definition.Actions.BaseBlob.Delete.DaysAfterModificationGreaterThan = logCollection.LogDurationDays;
+            {
+                currentPolicy.Definition.Actions.BaseBlob.Delete.DaysAfterCreationGreaterThan = logCollection.LogDurationDays;
+                currentPolicy.Definition.Actions.BaseBlob.Delete.DaysAfterModificationGreaterThan = null;
+            }
         }
 
         await storageAccount.GetStorageAccountManagementPolicy().CreateOrUpdateAsync(WaitUntil.Completed, policyData);

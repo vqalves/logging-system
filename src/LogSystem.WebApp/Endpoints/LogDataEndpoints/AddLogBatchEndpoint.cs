@@ -1,6 +1,5 @@
-using System.Text;
 using System.Text.Json;
-using LogSystem.WebApp.Services;
+using LogSystem.Core.Services.RabbitMq;
 
 namespace LogSystem.WebApp.Endpoints.LogDataEndpoints;
 
@@ -126,7 +125,8 @@ public static class AddLogBatchEndpoint
         private static readonly string[] ClientIds =
         {
             "Attendance", "Payroll", "Inventory", "Sales", "Marketing",
-            "Support", "Analytics", "Billing", "Notifications", "Reports"
+            "Support", "Analytics", "Billing", "Notifications", "Reports",
+            "Logs_Attendance"
         };
         private static readonly string[] ExceptionTypes =
         {
