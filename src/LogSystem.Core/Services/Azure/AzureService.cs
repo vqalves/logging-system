@@ -34,7 +34,7 @@ public class AzureService
         var containerClient = blobServiceClient.GetBlobContainerClient(AzureConfig.ContainerName);
 
         // Get reference to blob at path /logs/v1/{collectionName}/{fileName}
-        var blobPath = $"logs/v1/{collectionName}/{fileName}";
+        var blobPath = GenerateBlobPath(collectionName, fileName);
         var blobClient = containerClient.GetBlobClient(blobPath);
 
         // Compress content using GZipStream to byte array
@@ -42,8 +42,6 @@ public class AzureService
 
         using var outputStream = new MemoryStream();
         {
-            var bytes = Encoding.UTF8.GetBytes(content);
-            
             using var gzipStream = new GZipStream(outputStream, CompressionLevel.SmallestSize, leaveOpen: true);
             using var writer = new StreamWriter(gzipStream, Encoding.UTF8);
             {
@@ -229,8 +227,7 @@ public class AzureService
         var blobServiceClient = new BlobServiceClient(AzureConfig.ConnectionString);
         var containerClient = blobServiceClient.GetBlobContainerClient(AzureConfig.ContainerName);
 
-        // Get reference to blob at path /logs/v1/{collectionName}/{fileName}
-        var blobPath = $"logs/v1/{collectionName}/{fileName}";
+        var blobPath = GenerateBlobPath(collectionName, fileName);
         var blobClient = containerClient.GetBlobClient(blobPath);
 
         try
@@ -263,6 +260,11 @@ public class AzureService
                 Content = null
             };
         }
+    }
+
+    private string GenerateBlobPath(string collectionName, string fileName)
+    {
+        return $"logs/v1/{collectionName}/{fileName}";
     }
 
     public class DownloadedFile

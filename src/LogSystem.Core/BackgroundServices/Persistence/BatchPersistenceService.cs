@@ -4,10 +4,12 @@ using LogSystem.Core.Metrics;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.Channels;
-using LogSystem.WebApp.BackgroundServices.Persistence.DefaultMessageReceiver;
+using LogSystem.Core.BackgroundServices.Persistence.DefaultMessageReceiver;
 using LogSystem.Core.Caching;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
-namespace LogSystem.WebApp.BackgroundServices.Persistence;
+namespace LogSystem.Core.BackgroundServices.Persistence;
 
 public class BatchPersistenceService(
     PersistenceBackgroundServiceConfig persistenceConfig,

@@ -2,7 +2,7 @@ using System.Text.Json;
 using LogSystem.Core.Services.Database;
 using RabbitMQ.Client;
 
-namespace LogSystem.WebApp.BackgroundServices.Persistence.DefaultMessageReceiver;
+namespace LogSystem.Core.BackgroundServices.Persistence.DefaultMessageReceiver;
 
 public class DefaultReceivedMessageModel : IReceivedMessageModel, IDisposable
 {

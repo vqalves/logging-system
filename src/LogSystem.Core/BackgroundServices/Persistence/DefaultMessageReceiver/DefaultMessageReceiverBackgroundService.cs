@@ -8,8 +8,10 @@ using System.Text;
 using System.Threading.Channels;
 using LogSystem.Core.Caching;
 using System.Text.Json;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
-namespace LogSystem.WebApp.BackgroundServices.Persistence.DefaultMessageReceiver;
+namespace LogSystem.Core.BackgroundServices.Persistence.DefaultMessageReceiver;
 
 public class DefaultMessageReceiverBackgroundService(
     PersistenceBackgroundServiceConfig persistenceConfig,

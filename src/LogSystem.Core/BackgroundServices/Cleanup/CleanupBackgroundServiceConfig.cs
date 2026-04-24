@@ -1,5 +1,5 @@
 
-namespace LogSystem.WebApp.BackgroundServices.Cleanup;
+namespace LogSystem.Core.BackgroundServices.Cleanup;
 
 public class CleanupBackgroundServiceConfig
 {

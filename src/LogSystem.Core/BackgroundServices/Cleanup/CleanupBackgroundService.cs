@@ -1,7 +1,9 @@
 
 using LogSystem.Core.Services.Database;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
-namespace LogSystem.WebApp.BackgroundServices.Cleanup;
+namespace LogSystem.Core.BackgroundServices.Cleanup;
 
 public class CleanupBackgroundService(
     CleanupBackgroundServiceConfig cleanupConfig,

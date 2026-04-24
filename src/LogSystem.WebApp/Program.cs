@@ -4,12 +4,12 @@ using LogSystem.WebApp.Endpoints.LogAttributeEndpoints;
 using LogSystem.WebApp.Endpoints.LogDataEndpoints;
 using LogSystem.Core.Services.Azure;
 using LogSystem.Core.Services.Database;
-using LogSystem.WebApp.BackgroundServices.Persistence;
+using LogSystem.Core.BackgroundServices.Persistence;
 using LogSystem.Core.Services.RabbitMq;
-using LogSystem.WebApp.BackgroundServices.Cleanup;
+using LogSystem.Core.BackgroundServices.Cleanup;
 using LogSystem.Core.Metrics;
 using System.Threading.Channels;
-using LogSystem.WebApp.BackgroundServices.Persistence.DefaultMessageReceiver;
+using LogSystem.Core.BackgroundServices.Persistence.DefaultMessageReceiver;
 using LogSystem.Core.Caching;
 
 var configBuilder = new LogSystemConfigurationBuilder();

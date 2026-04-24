@@ -1,8 +1,8 @@
 
 using LogSystem.Core.Services.Azure;
 using LogSystem.Core.Services.Database;
-using LogSystem.WebApp.BackgroundServices.Persistence;
-using LogSystem.WebApp.BackgroundServices.Cleanup;
+using LogSystem.Core.BackgroundServices.Persistence;
+using LogSystem.Core.BackgroundServices.Cleanup;
 using LogSystem.Core.Services.RabbitMq;
 using LogSystem.Core.Caching;
 using System.Text.Json;
