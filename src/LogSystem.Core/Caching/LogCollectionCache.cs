@@ -54,11 +54,17 @@ public class LogCollectionCache
             // Load from database
             var logCollection = await DatabaseService.GetLogCollectionByClientIdAsync(clientId);
 
-            // If not found in database, execute the onNotFound callback
+            // If not found in database, create new collection
             if (logCollection == null)
-            {
                 logCollection = await CreateLogCollectionAsync(clientId);
+
+            // Check if lifecycle policy needs to be created (inside the lock for thread-safety)
+            if (!logCollection.LifecyclePolicyCreated)
+            {
                 await AzureService.SaveLifecyclePolicyAsync(logCollection);
+                
+                logCollection.LifecyclePolicyCreated = true;
+                await DatabaseService.SaveLogCollectionAsync(logCollection);
             }
 
             // Create new cache entry with creation timestamp

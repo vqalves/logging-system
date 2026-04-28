@@ -36,7 +36,7 @@ builder.Services.AddSingleton<MessagesPerCollectionReport>();
 // Register Channel for message processing
 builder.Services.AddSingleton(Channel.CreateUnbounded<IReceivedMessageModel>(new UnboundedChannelOptions
 {
-    SingleReader = false,
+    SingleReader = true,
     SingleWriter = false
 }));
 

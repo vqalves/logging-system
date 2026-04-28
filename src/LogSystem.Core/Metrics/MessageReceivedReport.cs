@@ -12,9 +12,20 @@ public class MessageReceivedReport(ILogger logger)
         public int SuccessCount { get; set; }
         public int FailureCount { get; set; }
         public TimeSpan TotalProcessingTime { get; set; }
+        public TimeSpan TotalReadingPayload { get; set; }
+        public TimeSpan TotalExtratingCollectionName { get; set; }
+        public TimeSpan TotalExtratingLog { get; set; }
+        public TimeSpan TotalWritingToChannel { get; set; }
     }
 
-    public void RecordMessage(string channelId, TimeSpan processingTime, bool success)
+    public void RecordMessage(
+        string channelId,
+        TimeSpan processingTime,
+        bool success,
+        TimeSpan readingPayload = default,
+        TimeSpan extratingCollectionName = default,
+        TimeSpan extratingLog = default,
+        TimeSpan writingToChannel = default)
     {
         lock (_lock)
         {
@@ -29,6 +40,10 @@ public class MessageReceivedReport(ILogger logger)
                 metrics.FailureCount++;
 
             metrics.TotalProcessingTime += processingTime;
+            metrics.TotalReadingPayload += readingPayload;
+            metrics.TotalExtratingCollectionName += extratingCollectionName;
+            metrics.TotalExtratingLog += extratingLog;
+            metrics.TotalWritingToChannel += writingToChannel;
         }
     }
 
@@ -51,16 +66,28 @@ public class MessageReceivedReport(ILogger logger)
         var totalSuccess = 0;
         var totalFailure = 0;
         var totalProcessingTime = TimeSpan.Zero;
+        var totalReadingPayload = TimeSpan.Zero;
+        var totalExtratingCollectionName = TimeSpan.Zero;
+        var totalExtratingLog = TimeSpan.Zero;
+        var totalWritingToChannel = TimeSpan.Zero;
 
         foreach (var channelMetric in snapshot.Values)
         {
             totalSuccess += channelMetric.SuccessCount;
             totalFailure += channelMetric.FailureCount;
             totalProcessingTime += channelMetric.TotalProcessingTime;
+            totalReadingPayload += channelMetric.TotalReadingPayload;
+            totalExtratingCollectionName += channelMetric.TotalExtratingCollectionName;
+            totalExtratingLog += channelMetric.TotalExtratingLog;
+            totalWritingToChannel += channelMetric.TotalWritingToChannel;
         }
 
         var totalCount = totalSuccess + totalFailure;
         var avgProcessingTime = totalProcessingTime.TotalMilliseconds / totalCount;
+        var avgReadingPayload = totalReadingPayload.TotalMilliseconds / totalCount;
+        var avgExtratingCollectionName = totalExtratingCollectionName.TotalMilliseconds / totalCount;
+        var avgExtratingLog = totalExtratingLog.TotalMilliseconds / totalCount;
+        var avgWritingToChannel = totalWritingToChannel.TotalMilliseconds / totalCount;
 
         // Build per-channel report
         var channelReports = snapshot
@@ -69,18 +96,22 @@ public class MessageReceivedReport(ILogger logger)
             {
                 var channelTotal = kvp.Value.SuccessCount + kvp.Value.FailureCount;
                 var channelAvg = kvp.Value.TotalProcessingTime.TotalMilliseconds / channelTotal;
-                return $"{kvp.Key}: {channelTotal} msgs ({kvp.Value.SuccessCount}✓/{kvp.Value.FailureCount}✗, {channelAvg:F2}ms avg)";
+                return $"{kvp.Key}: {kvp.Value.SuccessCount}✓/{kvp.Value.FailureCount}✗";
             })
             .ToList();
 
-        var perChannelDetails = string.Join(" | ", channelReports);
+        var perChannelDetails = string.Join(", ", channelReports);
 
         logger.LogInformation(
-            "Message reception report - CONSOLIDATED: {TotalCount} messages ({SuccessCount}✓/{FailureCount}✗, {AvgProcessingTime:F2}ms avg) | PER-CHANNEL: {PerChannelDetails}",
-            totalCount,
+            "Message reception report - Msg={SuccessCount}✓/{FailureCount}✗, AvgTotal={AvgProcessingTime:F2}ms, ReadPayload={AvgReadingPayload:F2}ms, ExtractCol={AvgExtratingCollectionName:F2}ms, ExtractLog={AvgExtratingLog:F2}ms, WriteChannel={AvgWritingToChannel:F2}ms " +
+            "| PER-CHANNEL: {PerChannelDetails}",
             totalSuccess,
             totalFailure,
             avgProcessingTime,
+            avgReadingPayload,
+            avgExtratingCollectionName,
+            avgExtratingLog,
+            avgWritingToChannel,
             perChannelDetails);
     }
 }

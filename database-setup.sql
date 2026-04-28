@@ -48,11 +48,12 @@ GO
 -- Purpose: Stores metadata and configuration for each log collection
 --
 -- Columns:
---   ID                - Unique identifier for the log collection (auto-incrementing)
---   Name              - Human-readable name of the log collection
---   ClientId          - Unique client identifier (business key)
---   TableName         - Name of the dynamic log table (e.g., "Logs_SystemA")
---   LogDurationDays   - Number of days to retain logs before expiration
+--   ID                       - Unique identifier for the log collection (auto-incrementing)
+--   Name                     - Human-readable name of the log collection
+--   ClientId                 - Unique client identifier (business key)
+--   TableName                - Name of the dynamic log table (e.g., "Logs_SystemA")
+--   LogDurationDays          - Number of days to retain logs before expiration
+--   LifecyclePolicyCreated   - Flag indicating if Azure lifecycle policy has been created
 --
 -- Relationships:
 --   Referenced by LogCollectionAttribute (one-to-many)
@@ -62,11 +63,12 @@ IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LogCollection' AND type = 
 BEGIN
     CREATE TABLE [dbo].[LogCollection]
     (
-        [ID]                BIGINT IDENTITY(1,1) NOT NULL,
-        [Name]              NVARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-        [ClientId]          VARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-        [TableName]         NVARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
-        [LogDurationDays]   INT NOT NULL,
+        [ID]                        BIGINT IDENTITY(1,1) NOT NULL,
+        [Name]                      NVARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+        [ClientId]                  VARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+        [TableName]                 NVARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+        [LogDurationDays]           INT NOT NULL,
+        [LifecyclePolicyCreated]    BIT NOT NULL DEFAULT 0,
 
         CONSTRAINT [PK_LogCollection] PRIMARY KEY CLUSTERED ([ID] ASC)
     );

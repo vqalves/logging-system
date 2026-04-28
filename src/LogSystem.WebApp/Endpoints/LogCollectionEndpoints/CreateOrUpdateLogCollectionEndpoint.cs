@@ -27,14 +27,12 @@ public static class CreateOrUpdateLogCollectionEndpoint
             try
             {
                 LogCollection logCollection;
-                bool isNewCollection = false;
                 bool retentionChanged = false;
 
                 if (request.ID == null || request.ID == 0)
                 {
                     // Create new collection
                     logCollection = new LogCollection(request.Name!, request.ClientId!, request.TableName!, request.LogDurationDays!.Value);
-                    isNewCollection = true;
                 }
                 else
                 {
@@ -54,8 +52,18 @@ public static class CreateOrUpdateLogCollectionEndpoint
 
                 await databaseService.SaveLogCollectionAsync(logCollection);
 
-                if(isNewCollection || retentionChanged)
+                // Check if lifecycle policy needs to be created or updated
+                if(!logCollection.LifecyclePolicyCreated || retentionChanged)
+                {
                     await azureService.SaveLifecyclePolicyAsync(logCollection);
+
+                    // Update the flag and save if it wasn't set before
+                    if(!logCollection.LifecyclePolicyCreated)
+                    {
+                        logCollection.LifecyclePolicyCreated = true;
+                        await databaseService.SaveLogCollectionAsync(logCollection);
+                    }
+                }
 
                 // Invalidate cache
                 cache.InvalidateCache(logCollection);

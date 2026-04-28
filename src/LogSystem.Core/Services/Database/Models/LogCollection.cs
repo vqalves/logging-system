@@ -12,6 +12,7 @@ public class LogCollection
     public string ClientId { get; set; }
     public string TableName { get; }
     public int LogDurationDays { get; set; }
+    public bool LifecyclePolicyCreated { get; set; }
 
     public LogCollection(string name, string clientId, string tableName, int logDurationDays)
     {

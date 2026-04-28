@@ -22,8 +22,11 @@ public class DefaultMessageReceiverBackgroundService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // await Task.Delay(TimeSpan.FromMinutes(5));
+
         logger.LogInformation("MessageReceiverService starting with {ChannelCount} channels...", persistenceConfig.RabbitMqChannelCount);
 
+        var extractionService = new LogExtractionService();
         var messageReceivedReport = new MessageReceivedReport(logger);
 
         IConnection? rabbitConnection = null;
@@ -45,7 +48,7 @@ public class DefaultMessageReceiverBackgroundService(
             for (int i = 0; i < persistenceConfig.RabbitMqChannelCount; i++)
             {
                 var channelIndex = i;
-                var channelId = $"Channel-{i + 1}";
+                var channelId = $"c{i + 1}";
                 try
                 {
                     var rabbitChannel = await rabbitConnection.CreateChannelAsync();
@@ -65,10 +68,19 @@ public class DefaultMessageReceiverBackgroundService(
                         var stopwatch = Stopwatch.StartNew();
                         bool success = false;
 
+                        var timingStopwatch = new Stopwatch();
+                        TimeSpan readingPayloadTime = TimeSpan.Zero;
+                        TimeSpan extratingCollectionNameTime = TimeSpan.Zero;
+                        TimeSpan extratingLogTime = TimeSpan.Zero;
+                        TimeSpan writingToChannelTime = TimeSpan.Zero;
+
                         try
                         {
+                            // Reading payload
+                            timingStopwatch.Restart();
                             var body = ea.Body.ToArray();
                             var payload = Encoding.UTF8.GetString(body);
+                            readingPayloadTime = timingStopwatch.Elapsed;
 
                             var receivedMessage = new DefaultReceivedMessageModel
                             {
@@ -78,19 +90,28 @@ public class DefaultMessageReceiverBackgroundService(
                                 Status = IReceivedMessageModel.PersistenceStatus.Pending
                             };
 
+                            // Extracting collection name
+                            timingStopwatch.Restart();
                             var logCollectionName = receivedMessage.GetLogCollectionClientId();
-
                             var logCollection = await logCollectionCache.GetOrCreateByClientIdAsync(logCollectionName);
                             var attributes = await logAttributeCache.ListAttributesAsync(logCollection);
                             var attributesList = attributes.ToList();
+                            extratingCollectionNameTime = timingStopwatch.Elapsed;
 
-                            var extractionService = new LogExtractionService();
+                            // Extracting log
+                            timingStopwatch.Restart();
+                            
                             receivedMessage.Log = extractionService.Extract(
                                 logCollection: logCollection,
                                 attributes: attributesList,
                                 contentAsJsonDocument: receivedMessage.GetPayloadAsJsonDocument);
+                            extratingLogTime = timingStopwatch.Elapsed;
 
+                            // Writing to channel
+                            timingStopwatch.Restart();
                             await messageChannel.Writer.WriteAsync(receivedMessage, stoppingToken);
+                            writingToChannelTime = timingStopwatch.Elapsed;
+
                             success = true;
                         }
                         catch (Exception ex)
@@ -100,7 +121,14 @@ public class DefaultMessageReceiverBackgroundService(
                         }
                         finally
                         {
-                            messageReceivedReport.RecordMessage(channelId, stopwatch.StopAndReturnEllapsed(), success);
+                            messageReceivedReport.RecordMessage(
+                                channelId,
+                                stopwatch.StopAndReturnEllapsed(),
+                                success,
+                                readingPayloadTime,
+                                extratingCollectionNameTime,
+                                extratingLogTime,
+                                writingToChannelTime);
                         }
 
                         if (!success)
