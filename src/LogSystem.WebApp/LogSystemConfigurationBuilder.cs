@@ -66,6 +66,7 @@ public class LogSystemConfigurationBuilder
     {
         var cacheDurationMinutesStr = GetConfigValue("SYSTEM_CACHE_DURATION_MINUTES");
         var defaultLogDurationDaysStr = GetConfigValue("LOGCOLLECTION_DEFAULT_LOG_TTL_DAYS");
+        var defaultMaxLogsPerFileStr = GetConfigValue("LOGCOLLECTION_DEFAULT_MAX_LOGS_PER_FILE");
 
         if (string.IsNullOrWhiteSpace(cacheDurationMinutesStr) || !int.TryParse(cacheDurationMinutesStr, out var cacheDurationMinutes))
             throw new InvalidOperationException($"SYSTEM_CACHE_DURATION_MINUTES value '{cacheDurationMinutesStr}' is not a valid integer");
@@ -73,10 +74,14 @@ public class LogSystemConfigurationBuilder
         if (string.IsNullOrWhiteSpace(defaultLogDurationDaysStr) || !int.TryParse(defaultLogDurationDaysStr, out var defaultLogDurationDays))
             throw new InvalidOperationException($"LOGCOLLECTION_DEFAULT_LOG_TTL_DAYS value '{defaultLogDurationDaysStr}' is not a valid int");
 
+        if (string.IsNullOrWhiteSpace(defaultMaxLogsPerFileStr) || !int.TryParse(defaultMaxLogsPerFileStr, out var defaultMaxLogsPerFile))
+            throw new InvalidOperationException($"LOGCOLLECTION_DEFAULT_MAX_LOGS_PER_FILE value '{defaultMaxLogsPerFileStr}' is not a valid int");
+
         return new LogSystemConfig
         {
             CacheDurationMinutes = TimeSpan.FromMinutes(cacheDurationMinutes),
-            DefaultLogDurationDays = defaultLogDurationDays
+            DefaultLogDurationDays = defaultLogDurationDays,
+            DefaultMaxLogsPerFile = defaultMaxLogsPerFile
         };
     }
 

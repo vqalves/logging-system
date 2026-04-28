@@ -13,8 +13,9 @@ public class LogCollection
     public string TableName { get; }
     public int LogDurationDays { get; set; }
     public bool LifecyclePolicyCreated { get; set; }
+    public int MaxLogsPerFile { get; set; }
 
-    public LogCollection(string name, string clientId, string tableName, int logDurationDays)
+    public LogCollection(string name, string clientId, string tableName, int logDurationDays, int maxLogsPerFile)
     {
         if (!TryValidateClientId(clientId, out var errorMessage))
             throw new ArgumentException(errorMessage, nameof(clientId));
@@ -22,10 +23,14 @@ public class LogCollection
         if (!TryValidateTableName(tableName, out errorMessage))
             throw new ArgumentException(errorMessage, nameof(tableName));
 
+        if (maxLogsPerFile <= 0)
+            throw new ArgumentException("MaxLogsPerFile must be greater than 0.", nameof(maxLogsPerFile));
+
         Name = name;
         ClientId = clientId;
         TableName = tableName;
         LogDurationDays = logDurationDays;
+        MaxLogsPerFile = maxLogsPerFile;
     }
 
     public static bool TryValidateClientId(string clientId, out string? errorMessage)

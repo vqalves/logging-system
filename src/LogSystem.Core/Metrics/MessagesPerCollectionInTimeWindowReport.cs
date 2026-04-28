@@ -1,6 +1,6 @@
 namespace LogSystem.Core.Metrics;
 
-public class MessagesPerCollectionReport
+public class MessagesPerCollectionInTimeWindowReport
 {
     private readonly object _lock = new();
     private readonly List<CollectionPersistenceRecord> _records = [];
@@ -12,20 +12,12 @@ public class MessagesPerCollectionReport
         public required int SuccessCount { get; init; }
         public required int FailedCount { get; init; }
         public required DateTime Timestamp { get; init; }
-        public required TimeSpan ReadingPayload { get; init; }
-        public required TimeSpan ExtratingCollectionName { get; init; }
-        public required TimeSpan ExtratingLog { get; init; }
-        public required TimeSpan WritingToChannel { get; init; }
     }
 
     public void RecordBatchPersistence(
         string collectionClientId,
         int successCount,
-        int failedCount,
-        TimeSpan readingPayload = default,
-        TimeSpan extratingCollectionName = default,
-        TimeSpan extratingLog = default,
-        TimeSpan writingToChannel = default)
+        int failedCount)
     {
         lock (_lock)
         {
@@ -36,11 +28,7 @@ public class MessagesPerCollectionReport
                 CollectionClientId = collectionClientId,
                 SuccessCount = successCount,
                 FailedCount = failedCount,
-                Timestamp = DateTime.UtcNow,
-                ReadingPayload = readingPayload,
-                ExtratingCollectionName = extratingCollectionName,
-                ExtratingLog = extratingLog,
-                WritingToChannel = writingToChannel
+                Timestamp = DateTime.UtcNow
             });
         }
     }
@@ -58,11 +46,7 @@ public class MessagesPerCollectionReport
                     g => new CollectionStats
                     {
                         SuccessCount = g.Sum(r => r.SuccessCount),
-                        FailedCount = g.Sum(r => r.FailedCount),
-                        AverageReadingPayload = g.Any() ? TimeSpan.FromTicks((long)g.Average(r => r.ReadingPayload.Ticks)) : TimeSpan.Zero,
-                        AverageExtratingCollectionName = g.Any() ? TimeSpan.FromTicks((long)g.Average(r => r.ExtratingCollectionName.Ticks)) : TimeSpan.Zero,
-                        AverageExtratingLog = g.Any() ? TimeSpan.FromTicks((long)g.Average(r => r.ExtratingLog.Ticks)) : TimeSpan.Zero,
-                        AverageWritingToChannel = g.Any() ? TimeSpan.FromTicks((long)g.Average(r => r.WritingToChannel.Ticks)) : TimeSpan.Zero
+                        FailedCount = g.Sum(r => r.FailedCount)
                     });
         }
     }
@@ -78,9 +62,5 @@ public class MessagesPerCollectionReport
         public int SuccessCount { get; init; }
         public int FailedCount { get; init; }
         public int TotalCount => SuccessCount + FailedCount;
-        public TimeSpan AverageReadingPayload { get; init; }
-        public TimeSpan AverageExtratingCollectionName { get; init; }
-        public TimeSpan AverageExtratingLog { get; init; }
-        public TimeSpan AverageWritingToChannel { get; init; }
     }
 }

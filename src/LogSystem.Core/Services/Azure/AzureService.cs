@@ -18,6 +18,8 @@ namespace LogSystem.Core.Services.Azure;
 
 public class AzureService
 {
+    // Check which attributes from Azure library are thread-safe and recommended to be singleton.
+    // If any is found, create lazy load methods for them to ensure single instance and update consumer codes accordingly.
     private readonly AzureConfig AzureConfig;
 
     public AzureService(AzureConfig azureConfig)

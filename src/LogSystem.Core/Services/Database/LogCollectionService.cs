@@ -147,7 +147,7 @@ public class LogCollectionService
         }
 
         var sql = @"
-            SELECT [ID], [Name], [ClientId], [TableName], [LogDurationDays], [LifecyclePolicyCreated]
+            SELECT [ID], [Name], [ClientId], [TableName], [LogDurationDays], [LifecyclePolicyCreated], [MaxLogsPerFile]
             FROM [dbo].[LogCollection]";
 
         if (whereClauses.Count > 0)
@@ -167,7 +167,8 @@ public class LogCollectionService
                 name: reader.GetString(1),
                 clientId: reader.GetString(2),
                 tableName: reader.GetString(3),
-                logDurationDays: reader.GetInt32(4));
+                logDurationDays: reader.GetInt32(4),
+                maxLogsPerFile: reader.GetInt32(6));
 
             logCollection.ID = reader.GetInt64(0);
             logCollection.LifecyclePolicyCreated = reader.GetBoolean(5);

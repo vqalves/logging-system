@@ -11,7 +11,7 @@ public static class GetCollectionMetricsEndpoint
     public static void MapEndpoint(IEndpointRouteBuilder app)
     {
         app.MapGet(Route, (
-            MessagesPerCollectionReport metricsReport) =>
+            MessagesPerCollectionInTimeWindowReport metricsReport) =>
         {
             var stats = metricsReport.GetCurrentStats();
 
@@ -28,7 +28,7 @@ public static class GetCollectionMetricsEndpoint
         });
     }
 
-    private static double CalculateAverageMessagesPerSecond(MessagesPerCollectionReport.CollectionStats stats)
+    private static double CalculateAverageMessagesPerSecond(MessagesPerCollectionInTimeWindowReport.CollectionStats stats)
     {
         // The retention window is 10 seconds (from MessagesPerCollectionReport)
         const double retentionWindowSeconds = 10.0;

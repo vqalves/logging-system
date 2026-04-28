@@ -31,7 +31,7 @@ builder.Services.AddSingleton<DatabaseService>();
 builder.Services.AddSingleton<RabbitMqPublisher>();
 
 // Register metrics
-builder.Services.AddSingleton<MessagesPerCollectionReport>();
+builder.Services.AddSingleton<MessagesPerCollectionInTimeWindowReport>();
 
 // Register Channel for message processing
 builder.Services.AddSingleton(Channel.CreateUnbounded<IReceivedMessageModel>(new UnboundedChannelOptions

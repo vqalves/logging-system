@@ -54,6 +54,7 @@ GO
 --   TableName                - Name of the dynamic log table (e.g., "Logs_SystemA")
 --   LogDurationDays          - Number of days to retain logs before expiration
 --   LifecyclePolicyCreated   - Flag indicating if Azure lifecycle policy has been created
+--   MaxLogsPerFile           - Maximum number of logs per file when persisting to storage
 --
 -- Relationships:
 --   Referenced by LogCollectionAttribute (one-to-many)
@@ -68,7 +69,8 @@ BEGIN
         [ClientId]                  VARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
         [TableName]                 NVARCHAR(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
         [LogDurationDays]           INT NOT NULL,
-        [LifecyclePolicyCreated]    BIT NOT NULL DEFAULT 0,
+        [LifecyclePolicyCreated]    BIT NOT NULL,
+        [MaxLogsPerFile]            INT NOT NULL,
 
         CONSTRAINT [PK_LogCollection] PRIMARY KEY CLUSTERED ([ID] ASC)
     );

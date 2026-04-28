@@ -1,8 +1,6 @@
 using LogSystem.Core.Services.Azure;
 using LogSystem.Core.Services.Database;
 using LogSystem.Core.Metrics;
-using System.Diagnostics;
-using System.Text.Json;
 using System.Threading.Channels;
 using LogSystem.Core.BackgroundServices.Persistence.DefaultMessageReceiver;
 using LogSystem.Core.Caching;
@@ -17,284 +15,100 @@ public class BatchPersistenceService(
     LogCollectionCache logCollectionCache,
     AzureService azureService,
     DatabaseService databaseService,
-    MessagesPerCollectionReport messagesPerCollectionReport,
+    MessagesPerCollectionInTimeWindowReport messagesPerCollectionReport,
     ILogger<BatchPersistenceService> logger) : BackgroundService
 {
-    private readonly char[] AvailableRandomizedCharacters = "abcdefghijklmnopqrstuvwxyz0123456789".ToCharArray();
-
-    private readonly JsonSerializerOptions JsonSerializerOptions = new JsonSerializerOptions
-    {
-        WriteIndented = false,
-    };
-
-    
-    private string GenerateRandomizedString(int size)
-    {
-        char[] result = new char[size];
-
-        for(var i = 0; i < result.Length; i++)
-            result[i] = AvailableRandomizedCharacters[Random.Shared.Next(0, AvailableRandomizedCharacters.Length)];
-
-        return new string(result);
-    }
+    private readonly Dictionary<string, LogCollectionBatchInfo> _batches = new();
+    private readonly List<Task> _batchTasks = new();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        DateTime? lastExecution = null;
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            await messageChannel.Reader.WaitToReadAsync(stoppingToken);
-
-            await ApplyFrequencyDelayAsync(lastExecution, stoppingToken);
-
-            var report = new PersistenceReport();
-            var totalStopwatch = Stopwatch.StartNew();
-
-            var batchStartTime = DateTime.UtcNow;
-            lastExecution = batchStartTime;
-
-            // Read messages from channel
-            var readingStopwatch = Stopwatch.StartNew();
-            var messages = ReadAvailableMessages(messageChannel);
-            
-            report.ReadingFromChannel = readingStopwatch.StopAndReturnEllapsed();
-            report.MessageCount = messages.Count;
-
-            // Group messages by collection
-            var groupingStopwatch = Stopwatch.StartNew();
-            var messagesPerCollectionName = GroupMessagesByCollection(messages);
-            
-            report.GroupingByCollectionName = groupingStopwatch.StopAndReturnEllapsed();
-
-            var persistedFileName = $"{batchStartTime:yyMMddHHmmss}_{GenerateRandomizedString(6)}.json.gzip";
-
-            var persistStopwatch = Stopwatch.StartNew();
-            try
-            {
-                await ProcessBatchesAsync(messagesPerCollectionName, logCollectionCache, persistedFileName, report);
-            }
-            catch(Exception ex)
-            {
-                logger.LogError(ex, "Error persisting batch");
-            }
-
-            report.PersistDuration = persistStopwatch.StopAndReturnEllapsed();
-
-            var ackStopwatch = Stopwatch.StartNew();
-            try
-            {
-                await HandleMessageAcknowledgmentsAsync(messages);
-            }
-            catch(Exception ex)
-            {
-                logger.LogError(ex, "Error acknowleding messages");
-            }
-
-            report.AcknowledgementDuration = ackStopwatch.StopAndReturnEllapsed();
-
-            report.TotalExecutionTime = totalStopwatch.StopAndReturnEllapsed();
-
-            // Log the persistence report
-            logger.LogDebug("{PersistenceReport}", report.ToFormattedString());
-
-            foreach (var message in messages)
-                message.Dispose();
-        }
-    }
-
-    private async Task ApplyFrequencyDelayAsync(DateTime? lastExecution, CancellationToken stoppingToken)
-    {
-        if (lastExecution != null)
-        {
-            var timeSinceLastExecution = DateTime.UtcNow - lastExecution.Value;
-            var remainingDelay = persistenceConfig.MaxFrequency - timeSinceLastExecution;
-
-            if (remainingDelay > TimeSpan.Zero)
-                await Task.Delay(remainingDelay, stoppingToken);
-        }
-    }
-
-    private List<IReceivedMessageModel> ReadAvailableMessages(Channel<IReceivedMessageModel> messageChannel)
-    {
-        var messages = new List<IReceivedMessageModel>();
-
-        while (messages.Count < persistenceConfig.MaxPersistenceBatchSize && messageChannel.Reader.TryRead(out var message))
-            messages.Add(message);
-
-        return messages;
-    }
-
-    private List<CollectionMessageGroup> GroupMessagesByCollection(List<IReceivedMessageModel> messages)
-    {
-        return messages
-            .GroupBy(x => x.GetLogCollectionClientId())
-            .Select(x => new CollectionMessageGroup(x.Key, x.ToList()))
-            .ToList();
-    }
-
-    private async Task ProcessBatchesAsync(
-        List<CollectionMessageGroup> messagesPerCollectionName,
-        LogCollectionCache logCollectionCache,
-        string persistedFileName,
-        PersistenceReport report)
-    {
-        var createdTasks = new List<Task>(messagesPerCollectionName.Count);
-
-        foreach (var collectionGroup in messagesPerCollectionName)
-        {
-            var batchReport = new CollectionBatchReport
-            {
-                CollectionClientId = collectionGroup.CollectionClientId,
-                MessageCount = collectionGroup.Messages.Count
-            };
-
-            report.Batches.Add(batchReport);
-
-            var task = Task.Run(() => ProcessBatchAsync(logCollectionCache, persistedFileName, collectionGroup, batchReport));
-            createdTasks.Add(task);
-        }
-
-        await Task.WhenAll(createdTasks);
-    }
-
-    private async Task ProcessBatchAsync(
-        LogCollectionCache logCollectionCache,
-        string persistedFileName,
-        CollectionMessageGroup collectionGroup,
-        CollectionBatchReport batchReport)
-    {
-        var batchStopwatch = Stopwatch.StartNew();
+        logger.LogInformation("BatchPersistenceService started");
 
         try
         {
-            await PersistCollectionGroupAsync(
-                collectionGroup,
-                logCollectionCache,
-                persistedFileName,
-                batchReport);
+            // Read from messageChannel until cancelled
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                // Wait for messages to arrive
+                await messageChannel.Reader.WaitToReadAsync(stoppingToken);
 
-            MarkMessagesAsSuccessful(collectionGroup.Messages);
-            batchReport.SuccessfulMessageCount = collectionGroup.Messages.Count;
+                // Read a message
+                while(messageChannel.Reader.TryRead(out var message))
+                {
+
+                    // Get the LogCollectionClientID from the message
+                    var logCollectionClientId = message.GetLogCollectionClientId();
+                    var batchInfo = CreateLogCollectionBatch(logCollectionClientId, stoppingToken);
+
+                    // Publish the message to the batch's channel
+                    await batchInfo.Channel.Writer.WriteAsync(message, stoppingToken);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogInformation("BatchPersistenceService stopping - cancellation requested");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to persist messages for collection {Name}", collectionGroup.CollectionClientId);
-            MarkMessagesAsFailed(collectionGroup.Messages);
-            batchReport.FailedMessageCount = collectionGroup.Messages.Count;
+            logger.LogError(ex, "Unexpected error in BatchPersistenceService");
         }
-
-        batchReport.TotalExecutionTime = batchStopwatch.StopAndReturnEllapsed();
-
-        // Record metrics for this collection
-        messagesPerCollectionReport.RecordBatchPersistence(
-            collectionGroup.CollectionClientId,
-            batchReport.SuccessfulMessageCount,
-            batchReport.FailedMessageCount);
-    }
-
-    private async Task PersistCollectionGroupAsync(
-        CollectionMessageGroup collectionGroup,
-        LogCollectionCache logCollectionCache,
-        string persistedFileName,
-        CollectionBatchReport batchReport)
-    {
-        var retrieveStopwatch = Stopwatch.StartNew();
-        var logCollection = await logCollectionCache.GetOrCreateByClientIdAsync(collectionGroup.CollectionClientId);
-        
-        batchReport.RetrieveLogCollection = retrieveStopwatch.StopAndReturnEllapsed();
-
-        // Extract logs from messages (using pre-extracted logs where available)
-        var updateStopwatch = Stopwatch.StartNew();
-        var logs = new List<Log>();
-        for (int i = 0; i < collectionGroup.Messages.Count; i++)
+        finally
         {
-            var message = collectionGroup.Messages[i];
-            var log = message.GetLog();
-            
-            // Update source file information for batch persistence
-            log.SourceFileIndex = i;
-            log.SourceFileName = persistedFileName;
-            logs.Add(log);
+            // Complete all batch channels to signal no more messages
+            foreach (var batchInfo in _batches.Values)
+                batchInfo.Channel.Writer.Complete();
+
+            // Wait for all batch tasks to complete
+            logger.LogInformation("Waiting for {BatchCount} batch tasks to complete", _batchTasks.Count);
+            await Task.WhenAll(_batchTasks);
+
+            logger.LogInformation("BatchPersistenceService stopped");
         }
-        
-        batchReport.UpdateLogForFileData = updateStopwatch.StopAndReturnEllapsed();
-
-        await PersistLogsAsync(collectionGroup, logCollection, logs, persistedFileName, batchReport);
     }
 
-    private async Task PersistLogsAsync(
-        CollectionMessageGroup collectionGroup,
-        LogCollection logCollection,
-        List<Log> logs,
-        string persistedFileName,
-        CollectionBatchReport batchReport)
+    private LogCollectionBatchInfo CreateLogCollectionBatch(string logCollectionClientId, CancellationToken stoppingToken)
     {
-        var createJsonStopwatch = Stopwatch.StartNew();
-        var jsonContent = CreateJsonContent(collectionGroup.Messages);
-        
-        batchReport.Azure.CreateJsonContent = createJsonStopwatch.StopAndReturnEllapsed();
-
-        var azureTask = azureService.UploadFileAsync(
-            collectionName: logCollection.TableName,
-            fileName: persistedFileName,
-            content: jsonContent,
-            azureReport: batchReport.Azure);
-
-        var databaseTask = databaseService.SaveLogsAsync(logCollection, logs, batchReport.Database);
-
-        await Task.WhenAll(azureTask, databaseTask);
-    }
-
-    private string CreateJsonContent(List<IReceivedMessageModel> messages)
-    {
-        var jsonArray = messages.Select(m => m.GetPayloadAsString()).ToList();
-
-        return JsonSerializer.Serialize(jsonArray, JsonSerializerOptions);
-    }
-
-    private void MarkMessagesAsSuccessful(List<IReceivedMessageModel> messages)
-    {
-        foreach (var msg in messages)
-            msg.Status = IReceivedMessageModel.PersistenceStatus.Persisted;
-    }
-
-    private void MarkMessagesAsFailed(List<IReceivedMessageModel> messages)
-    {
-        foreach (var msg in messages)
-            msg.Status = IReceivedMessageModel.PersistenceStatus.Failed;
-    }
-
-    private async Task HandleMessageAcknowledgmentsAsync(List<IReceivedMessageModel> messages)
-    {
-        var messagesByChannel = messages.GroupBy(m => m.GetRabbitChannel()).ToList();
-
-        foreach (var channelGroup in messagesByChannel)
+        // Lookup or create LogCollectionBatch for this client ID
+        if (!_batches.TryGetValue(logCollectionClientId, out var batchInfo))
         {
-            var channelMessages = channelGroup.ToList();
-            var successfulMessages = channelMessages.Where(m => m.Status == IReceivedMessageModel.PersistenceStatus.Persisted).ToList();
-            var failedMessages = channelMessages.Where(m => m.Status == IReceivedMessageModel.PersistenceStatus.Failed).ToList();
+            // Create new LogCollectionBatch and its channel
+            var batchChannel = Channel.CreateUnbounded<IReceivedMessageModel>();
 
-            if (successfulMessages.Count == channelMessages.Count)
-            {
-                var highestDeliveryTag = channelGroup.Max(m => m.GetRabbitMqDeliveryTag());
-                await channelGroup.Key.BasicAckAsync(deliveryTag: highestDeliveryTag, multiple: true);
-            }
-            else if (failedMessages.Count == channelMessages.Count)
-            {
-                var highestDeliveryTag = channelGroup.Max(m => m.GetRabbitMqDeliveryTag());
-                await channelGroup.Key.BasicNackAsync(deliveryTag: highestDeliveryTag, multiple: true, requeue: false);
-            }
-            else
-            {
-                foreach (var msg in successfulMessages)
-                    await channelGroup.Key.BasicAckAsync(deliveryTag: msg.GetRabbitMqDeliveryTag(), multiple: false);
+            var batch = new LogCollectionBatch(
+                persistenceConfig,
+                logCollectionClientId,
+                logCollectionCache,
+                batchChannel,
+                azureService,
+                databaseService,
+                messagesPerCollectionReport,
+                logger);
 
-                foreach (var msg in failedMessages)
-                    await channelGroup.Key.BasicNackAsync(deliveryTag: msg.GetRabbitMqDeliveryTag(), multiple: false, requeue: false);
-            }
+            // Start the batch processing task
+            var batchTask = batch.ExecuteAsync(stoppingToken);
+
+            batchInfo = new LogCollectionBatchInfo
+            {
+                Batch = batch,
+                Channel = batchChannel,
+                Task = batchTask
+            };
+
+            _batches[logCollectionClientId] = batchInfo;
+            _batchTasks.Add(batchTask);
+
+            logger.LogInformation("Created new LogCollectionBatch for collection {LogCollectionClientId}", logCollectionClientId);
         }
+
+        return batchInfo;
     }
-    
-    private record CollectionMessageGroup(string CollectionClientId, List<IReceivedMessageModel> Messages);
+
+    private class LogCollectionBatchInfo
+    {
+        public required LogCollectionBatch Batch { get; init; }
+        public required Channel<IReceivedMessageModel> Channel { get; init; }
+        public required Task Task { get; init; }
+    }
 }

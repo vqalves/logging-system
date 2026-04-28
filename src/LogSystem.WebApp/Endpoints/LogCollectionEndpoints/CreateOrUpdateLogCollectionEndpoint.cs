@@ -32,7 +32,7 @@ public static class CreateOrUpdateLogCollectionEndpoint
                 if (request.ID == null || request.ID == 0)
                 {
                     // Create new collection
-                    logCollection = new LogCollection(request.Name!, request.ClientId!, request.TableName!, request.LogDurationDays!.Value);
+                    logCollection = new LogCollection(request.Name!, request.ClientId!, request.TableName!, request.LogDurationDays!.Value, request.MaxLogsPerFile!.Value);
                 }
                 else
                 {
@@ -48,6 +48,7 @@ public static class CreateOrUpdateLogCollectionEndpoint
                     logCollection.Name = request.Name!;
                     logCollection.ClientId = request.ClientId!;
                     logCollection.LogDurationDays = request.LogDurationDays!.Value;
+                    logCollection.MaxLogsPerFile = request.MaxLogsPerFile!.Value;
                 }
 
                 await databaseService.SaveLogCollectionAsync(logCollection);
@@ -130,8 +131,14 @@ public static class CreateOrUpdateLogCollectionEndpoint
             errors.Add("LogDurationDays", new[] { "LogDurationDays must be greater than 0." });
         }
 
+        // Validate MaxLogsPerFile
+        if (!request.MaxLogsPerFile.HasValue || request.MaxLogsPerFile <= 0)
+        {
+            errors.Add("MaxLogsPerFile", new[] { "MaxLogsPerFile must be greater than 0." });
+        }
+
         return errors;
     }
 
-    internal record Request(long? ID, string? Name, string? ClientId, string? TableName, int? LogDurationDays);
+    internal record Request(long? ID, string? Name, string? ClientId, string? TableName, int? LogDurationDays, int? MaxLogsPerFile);
 }

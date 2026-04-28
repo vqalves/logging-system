@@ -91,7 +91,8 @@ public class LogCollectionCache
             name: collectionName,
             clientId: collectionName,
             tableName: $"{collectionName}",
-            logDurationDays: LogSystemConfig.DefaultLogDurationDays);
+            logDurationDays: LogSystemConfig.DefaultLogDurationDays,
+            maxLogsPerFile: LogSystemConfig.DefaultMaxLogsPerFile);
 
         // Save to database
         await DatabaseService.SaveLogCollectionAsync(newLogCollection);
