@@ -16,6 +16,10 @@ var configBuilder = new LogSystemConfigurationBuilder();
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Clear default logging providers and add only Console
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+
 // Add services to the container.
 builder.Services.AddRazorPages();
 

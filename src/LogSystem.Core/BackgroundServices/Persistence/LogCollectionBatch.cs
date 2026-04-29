@@ -46,90 +46,128 @@ public class LogCollectionBatch(
             // Wait for messages to arrive
             await messageChannel.Reader.WaitToReadAsync(stoppingToken);
 
-            // Retrieve LogCollection from cache for this batch
+            // Batch tasks
+            var tasks = new List<Task>();
             var logCollection = await logCollectionCache.GetOrCreateByClientIdAsync(logCollectionId);
-
             var batchStartTime = DateTime.UtcNow;
-            var maxLogsForBatch = logCollection.MaxLogsPerFile;
 
-            // Read messages from channel up to MaxLogsPerFile or until channel is empty
-            var readingStopwatch = Stopwatch.StartNew();
-            var messages = ReadAvailableMessages(maxLogsForBatch);
-            var readingDuration = readingStopwatch.StopAndReturnEllapsed();
-
-            if(messages.Count == 0)
-                continue;
-
-            // Apply frequency delay only if not reaching MaxLogsPerFile
-            if (messages.Count < maxLogsForBatch)
-                await ApplyFrequencyDelayAsync(lastExecution, stoppingToken);
-
-            // Fill batch with remaining messages
-            readingStopwatch = Stopwatch.StartNew();
-            messages = messages.Concat(ReadAvailableMessages(maxLogsForBatch - messages.Count)).ToList();
-            readingDuration += readingStopwatch.StopAndReturnEllapsed();
+            var batches = await RetrieveBatchesAsync(lastExecution, logCollection.MaxLogsPerFile, stoppingToken);
+            
+            foreach(var batch in batches)
+            {
+                var task = ProcessMessagesAsync(logCollection, batchStartTime, batch);
+                tasks.Add(task);
+            }
 
             lastExecution = batchStartTime;
-
-            var totalStopwatch = Stopwatch.StartNew();
-
-            var persistedFileName = $"{batchStartTime:yyMMddHHmmss}_{GenerateRandomizedString(6)}.json.gzip";
-
-            // Track timing for retrieving log collection
-            var retrieveLogCollectionStopwatch = Stopwatch.StartNew();
-            logCollection = await logCollectionCache.GetOrCreateByClientIdAsync(logCollectionId);
-            var retrieveLogCollectionDuration = retrieveLogCollectionStopwatch.StopAndReturnEllapsed();
-
-            var timingReport = new PersistenceTimingReport
-            {
-                CollectionClientId = logCollection.ClientId,
-                MessageCount = messages.Count,
-                ReadFromChannel = readingDuration,
-                RetrieveLogCollection = retrieveLogCollectionDuration
-            };
-
-            try
-            {
-                await PersistBatchAsync(logCollection, messages, persistedFileName, timingReport);
-                MarkMessagesAsSuccessful(messages);
-                timingReport.Success = true;
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to persist messages for collection {LogCollectionId}", logCollectionId);
-                MarkMessagesAsFailed(messages);
-                timingReport.Success = false;
-            }
-
-            // Handle message acknowledgments
-            var ackStopwatch = Stopwatch.StartNew();
-            try
-            {
-                await HandleMessageAcknowledgmentsAsync(messages);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error acknowledging messages for collection {LogCollectionId}", logCollectionId);
-            }
-            timingReport.AcknowledgeMessages = ackStopwatch.StopAndReturnEllapsed();
-
-            timingReport.TotalExecutionTime = totalStopwatch.StopAndReturnEllapsed();
-
-            // Log the timing report
-            logger.LogDebug("{TimingReport}", timingReport.ToFormattedString());
-
-            // Record metrics
-            var successCount = timingReport.Success ? timingReport.MessageCount : 0;
-            var failedCount = timingReport.Success ? 0 : timingReport.MessageCount;
-            messagesPerCollectionReport.RecordBatchPersistence(
-                logCollection.ClientId,
-                successCount,
-                failedCount);
-
-            // Dispose messages
-            foreach (var message in messages)
-                message.Dispose();
+            await Task.WhenAll(tasks);
         }
+    }
+
+    private async Task<List<List<IReceivedMessageModel>>> RetrieveBatchesAsync(DateTime? lastExecution, int maxLogsForBatch, CancellationToken stoppingToken)
+    {
+        var result = new List<List<IReceivedMessageModel>>();
+
+        if (stoppingToken.IsCancellationRequested)
+            return result;
+
+        // Process all batches with full message in parallel
+        while(messageChannel.Reader.Count > maxLogsForBatch)
+        {
+            var batch = RetrieveMessages(maxLogsForBatch);
+            result.Add(batch);
+        }
+
+        if(result.Count == 0)
+        {
+            await ApplyFrequencyDelayAsync(lastExecution, stoppingToken);
+
+            // Check again to process all batches with full message in parallel
+            while(messageChannel.Reader.Count > maxLogsForBatch)
+            {
+                var batch = RetrieveMessages(maxLogsForBatch);
+                result.Add(batch);
+            }
+        }
+
+        // If no full batches were found and delay is satisfied, then get whatever the channel has to offer and process it as a single batch
+        if(result.Count == 0)
+        {
+            var batch = RetrieveMessages(maxLogsForBatch);
+            result.Add(batch);
+        }
+
+        return result;
+    }
+
+    private List<IReceivedMessageModel> RetrieveMessages(int maxLogsForBatch)
+    {
+        var batch = new List<IReceivedMessageModel>();
+
+        while (batch.Count < maxLogsForBatch && messageChannel.Reader.TryRead(out var message))
+            batch.Add(message);
+
+        return batch;
+    }
+
+    private async Task ProcessMessagesAsync(LogCollection logCollection, DateTime batchStartTime, List<IReceivedMessageModel> messages)
+    {
+        var totalStopwatch = Stopwatch.StartNew();
+
+        var persistedFileName = $"{batchStartTime:yyMMddHHmmss}_{GenerateRandomizedString(6)}.json.gzip";
+
+        // Track timing for retrieving log collection
+        var retrieveLogCollectionStopwatch = Stopwatch.StartNew();
+        var retrieveLogCollectionDuration = retrieveLogCollectionStopwatch.StopAndReturnEllapsed();
+
+        var timingReport = new PersistenceTimingReport
+        {
+            CollectionClientId = logCollectionId,
+            MessageCount = messages.Count,
+            RetrieveLogCollection = retrieveLogCollectionDuration
+        };
+
+        try
+        {
+            await PersistBatchAsync(logCollection, messages, persistedFileName, timingReport);
+            MarkMessagesAsSuccessful(messages);
+            timingReport.Success = true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to persist messages for collection {LogCollectionId}", logCollectionId);
+            MarkMessagesAsFailed(messages);
+            timingReport.Success = false;
+        }
+
+        // Handle message acknowledgments
+        var ackStopwatch = Stopwatch.StartNew();
+        try
+        {
+            await HandleMessageAcknowledgmentsAsync(messages);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error acknowledging messages for collection {LogCollectionId}", logCollectionId);
+        }
+        timingReport.AcknowledgeMessages = ackStopwatch.StopAndReturnEllapsed();
+
+        timingReport.TotalExecutionTime = totalStopwatch.StopAndReturnEllapsed();
+
+        // Log the timing report
+        logger.LogDebug("{TimingReport}", timingReport.ToFormattedString());
+
+        // Record metrics
+        var successCount = timingReport.Success ? timingReport.MessageCount : 0;
+        var failedCount = timingReport.Success ? 0 : timingReport.MessageCount;
+        messagesPerCollectionReport.RecordBatchPersistence(
+            logCollectionId,
+            successCount,
+            failedCount);
+
+        // Dispose messages
+        foreach (var message in messages)
+            message.Dispose();
     }
 
     private async Task ApplyFrequencyDelayAsync(DateTime? lastExecution, CancellationToken stoppingToken)
@@ -137,21 +175,11 @@ public class LogCollectionBatch(
         if (lastExecution != null)
         {
             var timeSinceLastExecution = DateTime.UtcNow - lastExecution.Value;
-            var remainingDelay = persistenceConfig.MaxFrequency - timeSinceLastExecution;
+            var remainingDelay = persistenceConfig.BatchFillMaxWaitTime - timeSinceLastExecution;
 
             if (remainingDelay > TimeSpan.Zero)
                 await Task.Delay(remainingDelay, stoppingToken);
         }
-    }
-
-    private List<IReceivedMessageModel> ReadAvailableMessages(int maxMessages)
-    {
-        var messages = new List<IReceivedMessageModel>();
-
-        while (messages.Count < maxMessages && messageChannel.Reader.TryRead(out var message))
-            messages.Add(message);
-
-        return messages;
     }
 
     private async Task PersistBatchAsync(

@@ -89,13 +89,13 @@ public class LogSystemConfigurationBuilder
     {
         var rabbitMqConnectionString = GetConfigValue("RABBITMQ_CONNECTION_STRING") ?? throw new InvalidOperationException("RABBITMQ_CONNECTION_STRING not found in configuration");
         var rabbitMqQueueName = GetConfigValue("RABBITMQ_QUEUE_NAME") ?? throw new InvalidOperationException("RABBITMQ_QUEUE_NAME not found in configuration");
-        var maxFrequencySecondsStr = GetConfigValue("PERSISTENCE_MAX_FREQUENCY_SECONDS");
+        var batchFillMaxWaitTimeSecondsStr = GetConfigValue("PERSISTENCE_BATCH_FILL_MAX_WAIT_TIME_SECONDS");
         var maxPersistenceBatchSizeStr = GetConfigValue("PERSISTENCE_MAX_BATCH_SIZE");
         var channelCountStr = GetConfigValue("RABBITMQ_CHANNEL_COUNT");
         var prefetchCountStr = GetConfigValue("RABBITMQ_PREFETCH_COUNT");
         
-        if (string.IsNullOrWhiteSpace(maxFrequencySecondsStr) || !int.TryParse(maxFrequencySecondsStr, out var maxFrequencySeconds))
-            throw new InvalidOperationException($"PERSISTENCE_MAX_FREQUENCY_SECONDS value '{maxFrequencySecondsStr}' is not a valid integer");
+        if (string.IsNullOrWhiteSpace(batchFillMaxWaitTimeSecondsStr) || !int.TryParse(batchFillMaxWaitTimeSecondsStr, out var batchFillMaxWaitTimeSeconds))
+            throw new InvalidOperationException($"PERSISTENCE_BATCH_FILL_MAX_WAIT_TIME_SECONDS value '{batchFillMaxWaitTimeSecondsStr}' is not a valid integer");
 
         if (string.IsNullOrWhiteSpace(maxPersistenceBatchSizeStr) || !int.TryParse(maxPersistenceBatchSizeStr, out var maxPersistenceBatchSize))
             throw new InvalidOperationException($"PERSISTENCE_MAX_BATCH_SIZE value '{maxPersistenceBatchSizeStr}' is not a valid integer");
@@ -110,7 +110,7 @@ public class LogSystemConfigurationBuilder
         {
             RabbitMqConnectionString = rabbitMqConnectionString,
             RabbitMqQueueName = rabbitMqQueueName,
-            MaxFrequency = TimeSpan.FromSeconds(maxFrequencySeconds),
+            BatchFillMaxWaitTime = TimeSpan.FromSeconds(batchFillMaxWaitTimeSeconds),
             MaxPersistenceBatchSize = maxPersistenceBatchSize, 
             RabbitMqChannelCount = channelCount,
             RabbitMqPrefetchCount = prefetchCount

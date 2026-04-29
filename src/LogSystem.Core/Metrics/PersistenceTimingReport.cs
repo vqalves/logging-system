@@ -7,7 +7,6 @@ public class PersistenceTimingReport
     public required string CollectionClientId { get; set; }
     public int MessageCount { get; set; }
     public bool Success { get; set; }
-    public TimeSpan ReadFromChannel { get; set; }
     public TimeSpan RetrieveLogCollection { get; set; }
     public TimeSpan UpdateLogForFileData { get; set; }
     public TimeSpan AcknowledgeMessages { get; set; }

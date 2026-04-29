@@ -30,8 +30,7 @@ public static class GetCollectionMetricsEndpoint
 
     private static double CalculateAverageMessagesPerSecond(MessagesPerCollectionInTimeWindowReport.CollectionStats stats)
     {
-        // The retention window is 10 seconds (from MessagesPerCollectionReport)
-        const double retentionWindowSeconds = 10.0;
+        double retentionWindowSeconds = MessagesPerCollectionInTimeWindowReport.RetentionWindow.TotalSeconds;
 
         return stats.TotalCount / retentionWindowSeconds;
     }

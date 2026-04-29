@@ -2,10 +2,11 @@ namespace LogSystem.Core.Metrics;
 
 public class MessagesPerCollectionInTimeWindowReport
 {
+    public static readonly TimeSpan RetentionWindow = TimeSpan.FromSeconds(60);
+
     private readonly object _lock = new();
     private readonly List<CollectionPersistenceRecord> _records = [];
-    private readonly TimeSpan _retentionWindow = TimeSpan.FromSeconds(10);
-
+    
     private class CollectionPersistenceRecord
     {
         public required string CollectionClientId { get; init; }
@@ -53,7 +54,7 @@ public class MessagesPerCollectionInTimeWindowReport
 
     private void CleanOldRecords()
     {
-        var cutoffTime = DateTime.UtcNow - _retentionWindow;
+        var cutoffTime = DateTime.UtcNow - RetentionWindow;
         _records.RemoveAll(r => r.Timestamp < cutoffTime);
     }
 

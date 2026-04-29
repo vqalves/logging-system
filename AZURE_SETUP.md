@@ -411,7 +411,7 @@ Here's an example of what your `env.json` should look like with all Azure fields
   "LOG_DATABASE_CONNECTION_STRING": "Server=localhost,1433;Initial Catalog=LogSystem;User ID=sa;Password=<YourStrongPassword>;",
   "CLEANUP_MAX_ROWS_PER_BATCH": "",
   "CLEANUP_MAX_CONCURRENT_COLLECTIONS": "",
-  "PERSISTENCE_MAX_FREQUENCY_SECONDS": "",
+  "PERSISTENCE_BATCH_FILL_MAX_WAIT_TIME_SECONDS": "",
   "SYSTEM_CACHE_DURATION_MINUTES": "",
   "LOGCOLLECTION_DEFAULT_LOG_TTL_HOURS": ""
 }
