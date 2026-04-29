@@ -6,6 +6,7 @@ using LogSystem.Core.BackgroundServices.Persistence.DefaultMessageReceiver;
 using LogSystem.Core.Caching;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using LogSystem.Core.Services.Common.Compression;
 
 namespace LogSystem.Core.BackgroundServices.Persistence;
 
@@ -16,7 +17,8 @@ public class BatchPersistenceService(
     AzureService azureService,
     DatabaseService databaseService,
     MessagesPerCollectionInTimeWindowReport messagesPerCollectionReport,
-    ILogger<BatchPersistenceService> logger) : BackgroundService
+    ILogger<BatchPersistenceService> logger,
+    CompressionFactory compressionFactory) : BackgroundService
 {
     private readonly Dictionary<string, LogCollectionBatchInfo> _batches = new();
     private readonly List<Task> _batchTasks = new();
@@ -84,7 +86,8 @@ public class BatchPersistenceService(
                 azureService,
                 databaseService,
                 messagesPerCollectionReport,
-                logger);
+                logger,
+                compressionFactory);
 
             // Start the batch processing task
             var batchTask = batch.ExecuteAsync(stoppingToken);

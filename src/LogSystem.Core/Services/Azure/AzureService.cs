@@ -13,21 +13,24 @@ using System.Diagnostics;
 using System.IO.Compression;
 using Azure.Storage;
 using System.Text;
+using LogSystem.Core.Services.Common;
+using LogSystem.Core.Services.Common.Compression;
 
 namespace LogSystem.Core.Services.Azure;
 
 public class AzureService
 {
-    // TODO: Check which attributes from Azure library are thread-safe and recommended to be singleton.
     // If any is found, create lazy load methods for them to ensure single instance and update consumer codes accordingly.
     private readonly AzureConfig AzureConfig;
+    private readonly CompressionFactory _compressionFactory;
 
-    public AzureService(AzureConfig azureConfig)
+    public AzureService(AzureConfig azureConfig, CompressionFactory compressionFactory)
     {
         AzureConfig = azureConfig;
+        _compressionFactory = compressionFactory;
     }
 
-    public async Task UploadFileAsync(string collectionName, string fileName, string content, AzureOperationReport azureReport)
+    public async Task UploadFileAsync(string collectionName, string fileName, string content, ICompressionStrategy compressionStrategy, AzureOperationReport azureReport)
     {
         var totalStopwatch = Stopwatch.StartNew();
 
@@ -39,20 +42,18 @@ public class AzureService
         var blobPath = GenerateBlobPath(collectionName, fileName);
         var blobClient = containerClient.GetBlobClient(blobPath);
 
-        // Compress content using GZipStream to byte array
+        // Compress content using the provided compression strategy
         var compressStopwatch = Stopwatch.StartNew();
 
-        using var outputStream = new MemoryStream();
-        {
-            using var gzipStream = new GZipStream(outputStream, CompressionLevel.SmallestSize, leaveOpen: true);
-            using var writer = new StreamWriter(gzipStream, Encoding.UTF8);
-            {
-                await writer.WriteAsync(content);
-                await writer.FlushAsync();
-            }
-        }
+        var originalBytes = Encoding.UTF8.GetBytes(content);
+        var originalSizeBytes = originalBytes.Length;
+        
+        var compressedBytes = compressionStrategy.Compress(originalBytes);
+        var compressedSizeBytes = compressedBytes.Length;
 
-        azureReport.CompressToGzip = compressStopwatch.StopAndReturnEllapsed();
+        // Calculate compression reduction ratio (e.g., 0.745 = 74.5% reduction)
+        azureReport.CompressionReductionRatio = Math.Round(1.0 - ((double)compressedSizeBytes / originalSizeBytes), 3);
+        azureReport.CompressData = compressStopwatch.StopAndReturnEllapsed();
 
         // Upload compressed content to blob with metadata
         // BlobUploadOptions allows overwriting existing blobs
@@ -61,8 +62,8 @@ public class AzureService
             // Metadata = metadata,
             HttpHeaders = new BlobHttpHeaders
             {
-                ContentType = "application/gzip",
-                ContentEncoding = "gzip"
+                ContentType = compressionStrategy.GetMimeContentType(),
+                ContentEncoding = compressionStrategy.GetContentEncoding()
             },
 
             TransferOptions = new StorageTransferOptions
@@ -73,10 +74,10 @@ public class AzureService
         };
 
         var uploadStopwatch = Stopwatch.StartNew();
-        
+
         try
         {
-            outputStream.Position = 0;
+            using var outputStream = new MemoryStream(compressedBytes);
             await blobClient.UploadAsync(outputStream, uploadOptions);
         }
         catch (RequestFailedException ex) when (ex.ErrorCode == "ContainerNotFound")
@@ -84,7 +85,7 @@ public class AzureService
             // Container doesn't exist, create it and retry upload
             await containerClient.CreateIfNotExistsAsync();
 
-            outputStream.Position = 0;
+            using var outputStream = new MemoryStream(compressedBytes);
             await blobClient.UploadAsync(outputStream, uploadOptions);
         }
 
@@ -237,14 +238,18 @@ public class AzureService
             // Download blob content stream
             var downloadResponse = await blobClient.DownloadStreamingAsync();
 
-            // Decompress using GZipStream
-            string decompressedContent;
+            // Read compressed bytes into memory
+            byte[] compressedBytes;
             using (var downloadStream = downloadResponse.Value.Content)
-            using (var gzipStream = new GZipStream(downloadStream, CompressionMode.Decompress))
-            using (var reader = new StreamReader(gzipStream))
+            using (var memoryStream = new MemoryStream())
             {
-                decompressedContent = await reader.ReadToEndAsync();
+                await downloadStream.CopyToAsync(memoryStream);
+                compressedBytes = memoryStream.ToArray();
             }
+
+            // Decompress using the appropriate compression strategy based on file name
+            var compressionStrategy = _compressionFactory.GetStrategyFromFileName(fileName);
+            var decompressedContent = compressionStrategy.Decompress(compressedBytes);
 
             // Return DownloadedFile with Found=true and Content populated
             return new DownloadedFile

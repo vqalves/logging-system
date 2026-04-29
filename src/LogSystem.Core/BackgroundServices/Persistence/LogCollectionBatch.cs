@@ -7,6 +7,7 @@ using System.Threading.Channels;
 using LogSystem.Core.BackgroundServices.Persistence.DefaultMessageReceiver;
 using LogSystem.Core.Caching;
 using Microsoft.Extensions.Logging;
+using LogSystem.Core.Services.Common.Compression;
 
 namespace LogSystem.Core.BackgroundServices.Persistence;
 
@@ -18,7 +19,8 @@ public class LogCollectionBatch(
     AzureService azureService,
     DatabaseService databaseService,
     MessagesPerCollectionInTimeWindowReport messagesPerCollectionReport,
-    ILogger<BatchPersistenceService> logger)
+    ILogger<BatchPersistenceService> logger,
+    CompressionFactory compressionFactory)
 {
     private static readonly char[] AvailableRandomizedCharacters = "abcdefghijklmnopqrstuvwxyz0123456789".ToCharArray();
 
@@ -114,7 +116,10 @@ public class LogCollectionBatch(
     {
         var totalStopwatch = Stopwatch.StartNew();
 
-        var persistedFileName = $"{batchStartTime:yyMMddHHmmss}_{GenerateRandomizedString(6)}.json.gzip";
+        // Get the default compression strategy (Brotli) and generate filename with appropriate extension
+        var compressionStrategy = compressionFactory.GetDefaultStrategy();
+        var baseFileName = $"{batchStartTime:yyMMddHHmmss}_{GenerateRandomizedString(6)}.json";
+        var persistedFileName = compressionStrategy.AddFormatExtension(baseFileName);
 
         // Track timing for retrieving log collection
         var retrieveLogCollectionStopwatch = Stopwatch.StartNew();
@@ -129,7 +134,7 @@ public class LogCollectionBatch(
 
         try
         {
-            await PersistBatchAsync(logCollection, messages, persistedFileName, timingReport);
+            await PersistBatchAsync(logCollection, messages, persistedFileName, compressionStrategy, timingReport);
             MarkMessagesAsSuccessful(messages);
             timingReport.Success = true;
         }
@@ -186,6 +191,7 @@ public class LogCollectionBatch(
         LogCollection logCollection,
         List<IReceivedMessageModel> messages,
         string persistedFileName,
+        ICompressionStrategy compressionStrategy,
         PersistenceTimingReport timingReport)
     {
         // Extract logs from messages and update file information
@@ -214,6 +220,7 @@ public class LogCollectionBatch(
             collectionName: logCollection.TableName,
             fileName: persistedFileName,
             content: jsonContent,
+            compressionStrategy: compressionStrategy,
             azureReport: timingReport.Azure);
 
         var databaseTask = databaseService.SaveLogsAsync(logCollection, logs, timingReport.Database);

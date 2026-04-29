@@ -2,6 +2,7 @@ using LogSystem.WebApp;
 using LogSystem.WebApp.Endpoints.LogCollectionEndpoints;
 using LogSystem.WebApp.Endpoints.LogAttributeEndpoints;
 using LogSystem.WebApp.Endpoints.LogDataEndpoints;
+using LogSystem.WebApp.Middleware;
 using LogSystem.Core.Services.Azure;
 using LogSystem.Core.Services.Database;
 using LogSystem.Core.BackgroundServices.Persistence;
@@ -11,6 +12,8 @@ using LogSystem.Core.Metrics;
 using System.Threading.Channels;
 using LogSystem.Core.BackgroundServices.Persistence.DefaultMessageReceiver;
 using LogSystem.Core.Caching;
+using LogSystem.Core.Services.Common;
+using LogSystem.Core.Services.Common.Compression;
 
 var configBuilder = new LogSystemConfigurationBuilder();
 
@@ -23,6 +26,10 @@ builder.Logging.AddConsole();
 // Add services to the container.
 builder.Services.AddRazorPages();
 
+// Add exception handling
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
+
 // Configure LogSystem services
 configBuilder.ConfigureServices(builder.Services);
 
@@ -33,6 +40,7 @@ builder.Services.AddSingleton<LogCollectionService>();
 builder.Services.AddSingleton<LogDataService>();
 builder.Services.AddSingleton<DatabaseService>();
 builder.Services.AddSingleton<RabbitMqPublisher>();
+builder.Services.AddSingleton<CompressionFactory>();
 
 // Register metrics
 builder.Services.AddSingleton<MessagesPerCollectionInTimeWindowReport>();
@@ -73,15 +81,16 @@ builder.Services.AddSingleton<LogAttributeCache>(p =>
 // Register background services
 builder.Services.AddHostedService<DefaultMessageReceiverBackgroundService>();
 builder.Services.AddHostedService<BatchPersistenceService>();
-builder.Services.AddHostedService<CleanupBackgroundService>();
+// builder.Services.AddHostedService<CleanupBackgroundService>();
 
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+app.UseExceptionHandler();
+
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error");
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
@@ -112,5 +121,6 @@ AddLogEndpoint.MapEndpoint(app);
 AddLogBatchEndpoint.MapEndpoint(app);
 SearchLogsEndpoint.MapEndpoint(app);
 DownloadLogEndpoint.MapEndpoint(app);
+TestCompressionEndpoint.MapEndpoint(app);
 
 app.Run();

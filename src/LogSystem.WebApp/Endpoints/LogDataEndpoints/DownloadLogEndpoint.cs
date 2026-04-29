@@ -49,7 +49,15 @@ public static class DownloadLogEndpoint
                 string[]? logArray;
                 try
                 {
-                    logArray = JsonSerializer.Deserialize<string[]>(downloadedFile.Content);
+                    // Remove starting characters that might have been introduced by the compression/decompression algorithm
+                    int jsonStartIndex = downloadedFile.Content.IndexOf('[');
+
+                    if (jsonStartIndex == -1)
+                        return Results.Problem(detail: "Invalid log file format: no JSON array found.", statusCode: 500);
+
+                    // Slice the string and deserialize
+                    var jsonString = downloadedFile.Content.Substring(jsonStartIndex);
+                    logArray = JsonSerializer.Deserialize<string[]>(jsonString);
                 }
                 catch (JsonException)
                 {

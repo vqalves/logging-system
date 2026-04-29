@@ -28,9 +28,10 @@ public class PersistenceTimingReport
 public class AzureOperationReport
 {
     public TimeSpan CreateJsonContent { get; set; } = TimeSpan.Zero;
-    public TimeSpan CompressToGzip { get; set; } = TimeSpan.Zero;
+    public TimeSpan CompressData { get; set; } = TimeSpan.Zero;
     public TimeSpan UploadFile { get; set; } = TimeSpan.Zero;
     public TimeSpan TotalExecutionTime { get; set; } = TimeSpan.Zero;
+    public double CompressionReductionRatio { get; set; } = 0.0;
 }
 
 public class DatabaseOperationReport
