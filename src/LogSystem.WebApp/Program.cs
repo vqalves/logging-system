@@ -104,6 +104,9 @@ app.UseAuthorization();
 
 app.MapRazorPages();
 
+// Redirect root to LogCollection page
+app.MapGet("/", () => Results.Redirect("/LogCollections"));
+
 // Register LogCollection endpoints
 GetLogCollectionsEndpoint.MapEndpoint(app);
 GetCollectionMetricsEndpoint.MapEndpoint(app);
