@@ -9,6 +9,7 @@
 <div class="mb-3">
     <a href="/LogCollections" class="btn btn-secondary">Back to Collections</a>
     <button id="create-button" class="btn btn-primary" style="display: none;">Create New Attribute</button>
+    <button id="test-extraction-button" class="btn btn-info" style="display: none;">Test Extraction</button>
 </div>
 
 <div id="error-message" class="alert alert-danger" style="display: none;"></div>
@@ -72,6 +73,11 @@
                 const createButton = document.getElementById('create-button');
                 createButton.style.display = 'inline-block';
                 createButton.onclick = () => window.location.href = `/LogAttributes/Manage?logCollectionId=${logCollectionId}`;
+
+                // Show test extraction button
+                const testExtractionButton = document.getElementById('test-extraction-button');
+                testExtractionButton.style.display = 'inline-block';
+                testExtractionButton.onclick = () => window.location.href = `/LogAttributes/SimulateExtraction/${logCollectionId}`;
 
             } catch (error) {
                 console.error('Error loading collection:', error);

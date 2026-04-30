@@ -1,0 +1,217 @@
+@page "{logCollectionId:long}"
+@model LogSystem.WebApp.Pages.LogAttributes.SimulateExtractionModel
+@{
+    ViewData["Title"] = "Test Attribute Extraction";
+}
+
+<h1 id="page-title">@ViewData["Title"]</h1>
+
+<div class="mb-3">
+    <a id="back-button" href="#" class="btn btn-secondary">Back to Attributes</a>
+</div>
+
+<div id="error-message" class="alert alert-danger" style="display: none;"></div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Log Collection: <span id="collection-name">Loading...</span></h5>
+    </div>
+    <div class="card-body">
+        <div class="mb-3">
+            <label for="log-input" class="form-label">Log Entry</label>
+            <textarea class="form-control font-monospace" id="log-input" rows="10" placeholder="Enter a log entry to test attribute extraction (JSON or plain text)..."></textarea>
+            <div class="form-text">Paste a sample log entry to test how attributes will be extracted.</div>
+        </div>
+
+        <div class="mb-3">
+            <button type="button" class="btn btn-primary" id="extract-button">
+                <span id="extract-text">Extract Attributes</span>
+                <span id="extract-spinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="results-container" style="display: none;">
+    <h4>Extraction Results</h4>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Attribute Name</th>
+                <th>Type</th>
+                <th>Extracted Value</th>
+            </tr>
+        </thead>
+        <tbody id="results-tbody">
+            <!-- Results will be populated here -->
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script>
+        const logCollectionId = '@RouteData.Values["logCollectionId"]';
+        let collectionName = '';
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!logCollectionId || logCollectionId === '') {
+                showError('LogCollectionId is required.');
+                document.getElementById('extract-button').disabled = true;
+                return;
+            }
+
+            loadLogCollection();
+
+            document.getElementById('back-button').href = `/LogAttributes/${logCollectionId}`;
+            document.getElementById('extract-button').addEventListener('click', extractAttributes);
+        });
+
+        async function loadLogCollection() {
+            try {
+                const response = await fetch('/api/log-collections');
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load collections: ${response.statusText}`);
+                }
+
+                const collections = await response.json();
+                const collection = collections.find(c => c.id == logCollectionId);
+
+                if (!collection) {
+                    showError('LogCollection not found.');
+                    document.getElementById('extract-button').disabled = true;
+                    return;
+                }
+
+                collectionName = collection.name;
+                document.getElementById('collection-name').textContent = collectionName;
+                document.getElementById('page-title').textContent = `Test Attribute Extraction - ${collectionName}`;
+
+            } catch (error) {
+                console.error('Error loading collection:', error);
+                showError('Failed to load collection: ' + error.message);
+            }
+        }
+
+        async function extractAttributes() {
+            const logText = document.getElementById('log-input').value.trim();
+
+            if (!logText) {
+                showError('Please enter a log entry to test.');
+                return;
+            }
+
+            // Clear previous errors and results
+            document.getElementById('error-message').style.display = 'none';
+            document.getElementById('results-container').style.display = 'none';
+
+            // Show loading state
+            const extractButton = document.getElementById('extract-button');
+            const extractText = document.getElementById('extract-text');
+            const extractSpinner = document.getElementById('extract-spinner');
+            extractButton.disabled = true;
+            extractText.style.display = 'none';
+            extractSpinner.style.display = 'inline-block';
+
+            try {
+                const response = await fetch(`/api/log-collections/${logCollectionId}/simulate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        logText: logText
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    displayResults(data.results);
+                } else if (response.status === 400) {
+                    const errorData = await response.json();
+                    showError('Validation error: ' + JSON.stringify(errorData.errors || errorData));
+                } else {
+                    const errorData = await response.json();
+                    showError(errorData.detail || 'Failed to extract attributes: ' + response.statusText);
+                }
+            } catch (error) {
+                console.error('Error extracting attributes:', error);
+                showError('Failed to extract attributes: ' + error.message);
+            } finally {
+                // Reset loading state
+                extractButton.disabled = false;
+                extractText.style.display = 'inline';
+                extractSpinner.style.display = 'none';
+            }
+        }
+
+        function displayResults(results) {
+            const resultsContainer = document.getElementById('results-container');
+            const resultsTbody = document.getElementById('results-tbody');
+
+            if (!results || results.length === 0) {
+                showError('No attributes configured for this collection.');
+                return;
+            }
+
+            // Clear previous results
+            resultsTbody.innerHTML = '';
+
+            // Create table rows
+            results.forEach(result => {
+                const row = document.createElement('tr');
+
+                const valueDisplay = formatExtractedValue(result.extractedValue);
+                const isNull = result.extractedValue === null || result.extractedValue === undefined;
+
+                row.innerHTML = `
+                    <td>${escapeHtml(result.attributeName)}</td>
+                    <td>${escapeHtml(result.attributeType)}</td>
+                    <td><span class="${isNull ? 'badge bg-secondary' : 'badge bg-success'}">${valueDisplay}</span></td>
+                `;
+
+                resultsTbody.appendChild(row);
+            });
+
+            resultsContainer.style.display = 'block';
+        }
+
+        function formatExtractedValue(value) {
+            if (value === null || value === undefined) {
+                return 'null';
+            }
+
+            if (typeof value === 'string') {
+                return escapeHtml(value);
+            }
+
+            if (typeof value === 'boolean') {
+                return value.toString();
+            }
+
+            if (typeof value === 'number') {
+                return value.toString();
+            }
+
+            // For objects/arrays, stringify
+            try {
+                return escapeHtml(JSON.stringify(value));
+            } catch {
+                return escapeHtml(String(value));
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            window.scrollTo(0, 0);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+}

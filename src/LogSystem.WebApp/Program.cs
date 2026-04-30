@@ -39,6 +39,7 @@ builder.Services.AddSingleton<LogAttributeService>();
 builder.Services.AddSingleton<LogCollectionService>();
 builder.Services.AddSingleton<LogDataService>();
 builder.Services.AddSingleton<DatabaseService>();
+builder.Services.AddSingleton<LogExtractionService>();
 builder.Services.AddSingleton<RabbitMqPublisher>();
 builder.Services.AddSingleton<CompressionFactory>();
 
@@ -112,6 +113,7 @@ GetLogCollectionsEndpoint.MapEndpoint(app);
 GetCollectionMetricsEndpoint.MapEndpoint(app);
 CreateOrUpdateLogCollectionEndpoint.MapEndpoint(app);
 DeleteLogCollectionEndpoint.MapEndpoint(app);
+SimulateExtractionEndpoint.MapEndpoint(app);
 
 // Register LogAttribute endpoints
 CreateLogAttributeEndpoint.MapEndpoint(app);
