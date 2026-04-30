@@ -22,7 +22,8 @@ public static class GetLogCollectionsEndpoint
                     collection.Name,
                     collection.ClientId,
                     collection.TableName,
-                    collection.LogDurationDays
+                    collection.LogDurationDays,
+                    collection.MaxLogsPerFile
                 ));
             }
             return Results.Ok(collections);
@@ -30,6 +31,6 @@ public static class GetLogCollectionsEndpoint
     }
 
     internal class Response() : List<ResponseItem>;
-    internal record ResponseItem(long ID, string Name, string ClientId, string TableName, long LogDurationDays);
+    internal record ResponseItem(long ID, string Name, string ClientId, string TableName, long LogDurationDays, int MaxLogsPerFile);
 }
 

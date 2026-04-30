@@ -14,8 +14,8 @@ public class LogCollectionService
     public async Task<long> InsertLogCollectionAsync(LogCollection logCollection, SqlConnection connection, SqlTransaction transaction)
     {
         var insertSql = @"
-            INSERT INTO [dbo].[LogCollection] ([Name], [ClientId], [TableName], [LogDurationDays], [LifecyclePolicyCreated])
-            VALUES (@Name, @ClientId, @TableName, @LogDurationDays, @LifecyclePolicyCreated);
+            INSERT INTO [dbo].[LogCollection] ([Name], [ClientId], [TableName], [LogDurationDays], [LifecyclePolicyCreated], [MaxLogsPerFile])
+            VALUES (@Name, @ClientId, @TableName, @LogDurationDays, @LifecyclePolicyCreated, @MaxLogsPerFile);
             SELECT CAST(SCOPE_IDENTITY() AS BIGINT);";
 
         using var insertCommand = new SqlCommand(insertSql, connection, transaction);
@@ -24,6 +24,7 @@ public class LogCollectionService
         insertCommand.Parameters.AddWithValue("@TableName", logCollection.TableName);
         insertCommand.Parameters.AddWithValue("@LogDurationDays", logCollection.LogDurationDays);
         insertCommand.Parameters.AddWithValue("@LifecyclePolicyCreated", logCollection.LifecyclePolicyCreated);
+        insertCommand.Parameters.AddWithValue("@MaxLogsPerFile", logCollection.MaxLogsPerFile);
 
         var newId = await insertCommand.ExecuteScalarAsync();
         return (long)(newId ?? throw new InvalidOperationException("Failed to retrieve new LogCollection ID from database."));
@@ -33,7 +34,7 @@ public class LogCollectionService
     {
         var updateSql = @"
             UPDATE [dbo].[LogCollection]
-            SET [Name] = @Name, [ClientId] = @ClientId, [LogDurationDays] = @LogDurationDays, [LifecyclePolicyCreated] = @LifecyclePolicyCreated
+            SET [Name] = @Name, [ClientId] = @ClientId, [LogDurationDays] = @LogDurationDays, [LifecyclePolicyCreated] = @LifecyclePolicyCreated, [MaxLogsPerFile] = @MaxLogsPerFile
             WHERE [ID] = @ID;";
 
         using var connection = new SqlConnection(DatabaseConfig.ConnectionString);
@@ -44,6 +45,7 @@ public class LogCollectionService
         updateCommand.Parameters.AddWithValue("@ClientId", logCollection.ClientId);
         updateCommand.Parameters.AddWithValue("@LogDurationDays", logCollection.LogDurationDays);
         updateCommand.Parameters.AddWithValue("@LifecyclePolicyCreated", logCollection.LifecyclePolicyCreated);
+        updateCommand.Parameters.AddWithValue("@MaxLogsPerFile", logCollection.MaxLogsPerFile);
         updateCommand.Parameters.AddWithValue("@ID", logCollection.ID);
 
         await updateCommand.ExecuteNonQueryAsync();

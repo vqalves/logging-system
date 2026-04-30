@@ -85,6 +85,13 @@
     </div>
 
     <div class="mb-3">
+        <label for="maxLogsPerFile" class="form-label">Max Logs Per File</label>
+        <input type="number" class="form-control" id="maxLogsPerFile" name="maxLogsPerFile" min="1" />
+        <div class="invalid-feedback" id="maxLogsPerFile-error"></div>
+        <div class="form-text">Maximum number of logs to store in each blob file.</div>
+    </div>
+
+    <div class="mb-3">
         <button type="submit" class="btn btn-primary" id="save-button">
             <span id="save-text">Save</span>
             <span id="save-spinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
@@ -98,6 +105,7 @@
     <script>
         const collectionId = '@RouteData.Values["id"]';
         const isEditMode = collectionId && collectionId !== '';
+        const defaultMaxLogsPerFile = @Model.DefaultMaxLogsPerFile;
 
         document.addEventListener('DOMContentLoaded', function() {
             if (isEditMode) {
@@ -112,6 +120,8 @@
                 manageAttributesButton.href = `/LogAttributes/${collectionId}`;
             } else {
                 document.getElementById('page-title').textContent = 'Create Log Collection';
+                // Set default value for new collections
+                document.getElementById('maxLogsPerFile').value = defaultMaxLogsPerFile;
             }
 
             // Add click handlers for duration presets
@@ -159,6 +169,7 @@
                 document.getElementById('clientId').value = collection.clientId;
                 document.getElementById('tableName').value = collection.tableName;
                 document.getElementById('logDurationDays').value = collection.logDurationDays;
+                document.getElementById('maxLogsPerFile').value = collection.maxLogsPerFile;
 
             } catch (error) {
                 console.error('Error loading collection:', error);
@@ -178,7 +189,8 @@
                 name: document.getElementById('name').value.trim(),
                 clientId: document.getElementById('clientId').value.trim(),
                 tableName: document.getElementById('tableName').value.trim(),
-                logDurationDays: parseInt(document.getElementById('logDurationDays').value)
+                logDurationDays: parseInt(document.getElementById('logDurationDays').value),
+                maxLogsPerFile: parseInt(document.getElementById('maxLogsPerFile').value)
             };
 
             // Show loading state
