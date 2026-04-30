@@ -57,11 +57,12 @@
     </div>
 
     <div class="mb-3">
-        <button type="submit" class="btn btn-primary" id="save-button">
-            <span id="save-text">Save</span>
-            <span id="save-spinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
+        <button type="submit" class="btn btn-primary" id="save-button" aria-describedby="save-button-status">
+            <span id="save-text">Save Attribute</span>
+            <span id="save-spinner" class="spinner-border spinner-border-sm ms-2" style="display: none;" role="status" aria-label="Saving..."></span>
         </button>
         <button type="button" class="btn btn-secondary" id="cancel-button">Cancel</button>
+        <span id="save-button-status" class="visually-hidden" role="status" aria-live="polite"></span>
     </div>
 </form>
 
@@ -152,9 +153,12 @@
             const saveButton = document.getElementById('save-button');
             const saveText = document.getElementById('save-text');
             const saveSpinner = document.getElementById('save-spinner');
+            const saveStatus = document.getElementById('save-button-status');
+
             saveButton.disabled = true;
-            saveText.style.display = 'none';
+            saveButton.setAttribute('aria-busy', 'true');
             saveSpinner.style.display = 'inline-block';
+            saveStatus.textContent = 'Saving attribute...';
 
             try {
                 const response = await fetch('/api/log-attributes', {
@@ -166,23 +170,29 @@
                 });
 
                 if (response.ok) {
-                    // Success - redirect to list
-                    window.location.href = `/LogAttributes/${logCollectionId}`;
+                    // Success - show success state briefly then redirect
+                    saveStatus.textContent = 'Attribute saved successfully. Redirecting...';
+                    setTimeout(() => {
+                        window.location.href = `/LogAttributes/${logCollectionId}`;
+                    }, 500);
                 } else if (response.status === 400) {
                     // Validation errors
                     const errorData = await response.json();
                     displayValidationErrors(errorData);
+                    saveStatus.textContent = 'Please correct the errors below.';
                 } else {
                     const errorData = await response.json();
                     showError(errorData.detail || 'Failed to save attribute: ' + response.statusText);
+                    saveStatus.textContent = 'Error saving attribute.';
                 }
             } catch (error) {
                 console.error('Error saving attribute:', error);
                 showError('Failed to save attribute: ' + error.message);
+                saveStatus.textContent = 'Error saving attribute.';
             } finally {
                 // Reset loading state
                 saveButton.disabled = false;
-                saveText.style.display = 'inline';
+                saveButton.removeAttribute('aria-busy');
                 saveSpinner.style.display = 'none';
             }
         });

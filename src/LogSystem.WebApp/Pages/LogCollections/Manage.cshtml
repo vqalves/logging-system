@@ -4,100 +4,191 @@
     ViewData["Title"] = "Manage Log Collection";
 }
 
-<h1 id="page-title">Manage Log Collection</h1>
+<nav class="breadcrumb-nav" aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/LogCollections">Log Collections</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Manage</li>
+    </ol>
+</nav>
 
-<div id="error-message" class="alert alert-danger" style="display: none;"></div>
+<div class="page-title-wrapper">
+    <h1 id="page-title" class="page-title">Manage Log Collection</h1>
+    <p class="page-subtitle">Configure collection settings and retention policies</p>
+</div>
 
-<form id="collection-form">
-    <input type="hidden" id="collection-id" value="0" />
+<div id="error-message" class="alert alert-danger alert-dismissible" role="alert" style="display: none;">
+    <div class="alert-icon" role="img" aria-label="Error icon"></div>
+    <div class="alert-content" id="error-message-text"></div>
+    <button type="button" class="btn-close" aria-label="Close alert" onclick="document.getElementById('error-message').style.display='none'">
+        <span aria-hidden="true">&times;</span>
+    </button>
+</div>
 
-    <div class="mb-3">
-        <label for="name" class="form-label">Name</label>
-        <input type="text" class="form-control" id="name" name="name" />
-        <div class="invalid-feedback" id="name-error"></div>
-    </div>
+<form id="collection-form" novalidate>
+    <input type="hidden" id="collection-id" name="collection-id" value="0" />
 
-    <div class="mb-3">
-        <label for="clientId" class="form-label">Client ID</label>
-        <input type="text" class="form-control" id="clientId" name="clientId" placeholder="e.g., app-frontend, mobile_client, api.service" />
-        <div class="invalid-feedback" id="clientId-error"></div>
-        <div class="form-text">
-            <strong>Unique identifier for the application or service sending logs. Letters, numbers, hyphen, underscore and dot are allowed</strong>
+    <fieldset class="form-section">
+        <legend class="form-section-title">Collection Details</legend>
+        <p class="form-section-description">Basic information to identify and configure this log collection.</p>
+
+        <div class="form-group">
+            <label for="name" class="form-label form-label-required">Name</label>
+            <input
+                type="text"
+                class="form-control"
+                id="name"
+                name="name"
+                aria-required="true"
+                aria-describedby="name-help name-error"
+                aria-invalid="false"
+                autocomplete="off"
+            />
+            <small id="name-help" class="form-text">A descriptive name for this log collection.</small>
+            <div class="invalid-feedback" id="name-error" role="alert"></div>
         </div>
-    </div>
 
-    <div class="mb-3">
-        <label for="tableName" class="form-label">Table Name</label>
-        <input type="text" class="form-control" id="tableName" name="tableName" placeholder="e.g., app_frontend_logs, mobile_logs" />
-        <div class="invalid-feedback" id="tableName-error"></div>
-        <div class="form-text">
-            <strong>Database table name where logs will be stored. Letters, numbers and underscore are allowed. Cannot be changed after creation.</strong>
+        <div class="form-group">
+            <label for="clientId" class="form-label form-label-required">Client ID</label>
+            <input
+                type="text"
+                class="form-control"
+                id="clientId"
+                name="clientId"
+                placeholder="e.g., app-frontend, mobile_client, api.service"
+                aria-required="true"
+                aria-describedby="clientId-help clientId-error"
+                aria-invalid="false"
+                autocomplete="off"
+            />
+            <small id="clientId-help" class="form-text">
+                Unique identifier for the application or service sending logs. Allowed characters: letters, numbers, hyphen (-), underscore (_), and dot (.)
+            </small>
+            <div class="invalid-feedback" id="clientId-error" role="alert"></div>
         </div>
-    </div>
 
-    <div class="mb-3">
-        <label for="logDurationDays" class="form-label">Log Duration (Days)</label>
-        <input type="number" class="form-control" id="logDurationDays" name="logDurationDays" min="1" />
-        <div class="invalid-feedback" id="logDurationDays-error"></div>
-        <div class="form-text">Number of days to retain logs.</div>
-
-        <div class="mt-2">
-            <small class="text-muted d-block mb-1">Common retention periods (click to select):</small>
-            <table class="table table-sm table-bordered" style="width: auto; font-size: 0.875rem;">
-                <thead class="table-light">
-                    <tr>
-                        <th>Period</th>
-                        <th class="text-end">Days</th>
-                    </tr>
-                </thead>
-                <tbody id="duration-presets">
-                    <tr class="duration-preset" data-days="1" style="cursor: pointer;">
-                        <td>1 day</td>
-                        <td class="text-end">1</td>
-                    </tr>
-                    <tr class="duration-preset" data-days="7" style="cursor: pointer;">
-                        <td>7 days</td>
-                        <td class="text-end">7</td>
-                    </tr>
-                    <tr class="duration-preset" data-days="30" style="cursor: pointer;">
-                        <td>1 month</td>
-                        <td class="text-end">30</td>
-                    </tr>
-                    <tr class="duration-preset" data-days="60" style="cursor: pointer;">
-                        <td>2 months</td>
-                        <td class="text-end">60</td>
-                    </tr>
-                    <tr class="duration-preset" data-days="180" style="cursor: pointer;">
-                        <td>6 months</td>
-                        <td class="text-end">180</td>
-                    </tr>
-                    <tr class="duration-preset" data-days="365" style="cursor: pointer;">
-                        <td>1 year</td>
-                        <td class="text-end">365</td>
-                    </tr>
-                    <tr class="duration-preset" data-days="730" style="cursor: pointer;">
-                        <td>2 years</td>
-                        <td class="text-end">730</td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="form-group">
+            <label for="tableName" class="form-label form-label-required">Table Name</label>
+            <input
+                type="text"
+                class="form-control"
+                id="tableName"
+                name="tableName"
+                placeholder="e.g., app_frontend_logs, mobile_logs"
+                aria-required="true"
+                aria-describedby="tableName-help tableName-error tableName-warning"
+                aria-invalid="false"
+                autocomplete="off"
+            />
+            <small id="tableName-help" class="form-text">
+                Database table name where logs will be stored. Allowed characters: letters, numbers, and underscore (_)
+            </small>
+            <div id="tableName-warning" class="warning-feedback" role="status" style="display: none;">
+                This field cannot be changed after the collection is created.
+            </div>
+            <div class="invalid-feedback" id="tableName-error" role="alert"></div>
         </div>
-    </div>
+    </fieldset>
 
-    <div class="mb-3">
-        <label for="maxLogsPerFile" class="form-label">Max Logs Per File</label>
-        <input type="number" class="form-control" id="maxLogsPerFile" name="maxLogsPerFile" min="1" />
-        <div class="invalid-feedback" id="maxLogsPerFile-error"></div>
-        <div class="form-text">Maximum number of logs to store in each blob file.</div>
-    </div>
+    <fieldset class="form-section">
+        <legend class="form-section-title">Retention & Storage</legend>
+        <p class="form-section-description">Configure how long logs are retained and storage settings.</p>
 
-    <div class="mb-3">
-        <button type="submit" class="btn btn-primary" id="save-button">
-            <span id="save-text">Save</span>
-            <span id="save-spinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
+        <div class="form-group">
+            <label for="logDurationDays" class="form-label form-label-required">Log Duration (Days)</label>
+            <input
+                type="number"
+                class="form-control"
+                id="logDurationDays"
+                name="logDurationDays"
+                min="1"
+                step="1"
+                aria-required="true"
+                aria-describedby="logDurationDays-help logDurationDays-error"
+                aria-invalid="false"
+            />
+            <small id="logDurationDays-help" class="form-text">
+                Number of days to retain logs before automatic deletion. Minimum: 1 day
+            </small>
+            <div class="invalid-feedback" id="logDurationDays-error" role="alert"></div>
+
+            <div class="mt-4">
+                <h3 class="h6 text-muted mb-3">Common retention periods (click to apply):</h3>
+                <div class="table-responsive" style="max-width: 400px;">
+                    <table class="table table-sm table-bordered table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col">Period</th>
+                                <th scope="col" class="text-end">Days</th>
+                            </tr>
+                        </thead>
+                        <tbody id="duration-presets">
+                            <tr class="duration-preset" data-days="1" role="button" tabindex="0" aria-label="Select 1 day retention">
+                                <td>1 day</td>
+                                <td class="text-end">1</td>
+                            </tr>
+                            <tr class="duration-preset" data-days="7" role="button" tabindex="0" aria-label="Select 7 days retention">
+                                <td>7 days</td>
+                                <td class="text-end">7</td>
+                            </tr>
+                            <tr class="duration-preset" data-days="30" role="button" tabindex="0" aria-label="Select 1 month retention">
+                                <td>1 month</td>
+                                <td class="text-end">30</td>
+                            </tr>
+                            <tr class="duration-preset" data-days="60" role="button" tabindex="0" aria-label="Select 2 months retention">
+                                <td>2 months</td>
+                                <td class="text-end">60</td>
+                            </tr>
+                            <tr class="duration-preset" data-days="180" role="button" tabindex="0" aria-label="Select 6 months retention">
+                                <td>6 months</td>
+                                <td class="text-end">180</td>
+                            </tr>
+                            <tr class="duration-preset" data-days="365" role="button" tabindex="0" aria-label="Select 1 year retention">
+                                <td>1 year</td>
+                                <td class="text-end">365</td>
+                            </tr>
+                            <tr class="duration-preset" data-days="730" role="button" tabindex="0" aria-label="Select 2 years retention">
+                                <td>2 years</td>
+                                <td class="text-end">730</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="maxLogsPerFile" class="form-label form-label-required">Max Logs Per File</label>
+            <input
+                type="number"
+                class="form-control"
+                id="maxLogsPerFile"
+                name="maxLogsPerFile"
+                min="1"
+                step="1"
+                aria-required="true"
+                aria-describedby="maxLogsPerFile-help maxLogsPerFile-error"
+                aria-invalid="false"
+            />
+            <small id="maxLogsPerFile-help" class="form-text">
+                Maximum number of logs to store in each blob file. Minimum: 1
+            </small>
+            <div class="invalid-feedback" id="maxLogsPerFile-error" role="alert"></div>
+        </div>
+    </fieldset>
+
+    <div class="form-actions form-actions-right">
+        <button type="button" class="btn btn-secondary" onclick="window.history.back()">
+            Cancel
         </button>
-        <a id="manage-attributes-button" class="btn btn-info" style="display: none;">Manage Attributes</a>
-        <button type="button" class="btn btn-secondary" onclick="window.history.back()">Cancel</button>
+        <a id="manage-attributes-button" class="btn btn-secondary" style="display: none;" role="button">
+            Manage Attributes
+        </a>
+        <button type="submit" class="btn btn-primary" id="save-button" aria-describedby="save-button-status">
+            <span id="save-text">Save Collection</span>
+            <span id="save-spinner" class="spinner-border spinner-border-sm ms-2" style="display: none;" role="status" aria-label="Saving..."></span>
+        </button>
+        <span id="save-button-status" class="visually-hidden" role="status" aria-live="polite"></span>
     </div>
 </form>
 
@@ -108,12 +199,26 @@
         const defaultMaxLogsPerFile = @Model.DefaultMaxLogsPerFile;
 
         document.addEventListener('DOMContentLoaded', function() {
+            initializeForm();
+            setupDurationPresets();
+            setupFormValidation();
+        });
+
+        function initializeForm() {
             if (isEditMode) {
                 document.getElementById('page-title').textContent = 'Edit Log Collection';
                 loadCollection(collectionId);
+
                 // Make TableName read-only when editing
-                document.getElementById('tableName').setAttribute('readonly', 'readonly');
-                document.getElementById('tableName').classList.add('bg-light');
+                const tableNameInput = document.getElementById('tableName');
+                tableNameInput.setAttribute('readonly', 'readonly');
+                tableNameInput.classList.add('form-control');
+
+                // Show warning about tableName being read-only
+                const tableNameWarning = document.getElementById('tableName-warning');
+                tableNameWarning.style.display = 'block';
+                tableNameWarning.setAttribute('aria-live', 'polite');
+
                 // Show Manage Attributes button in edit mode
                 const manageAttributesButton = document.getElementById('manage-attributes-button');
                 manageAttributesButton.style.display = 'inline-block';
@@ -123,29 +228,119 @@
                 // Set default value for new collections
                 document.getElementById('maxLogsPerFile').value = defaultMaxLogsPerFile;
             }
+        }
 
-            // Add click handlers for duration presets
+        function setupDurationPresets() {
+            // Add click and keyboard handlers for duration presets
             document.querySelectorAll('.duration-preset').forEach(row => {
+                // Click handler
                 row.addEventListener('click', function() {
-                    const days = this.getAttribute('data-days');
-                    document.getElementById('logDurationDays').value = days;
-
-                    // Highlight selected row temporarily
-                    document.querySelectorAll('.duration-preset').forEach(r => r.classList.remove('table-primary'));
-                    this.classList.add('table-primary');
+                    selectDurationPreset(this);
                 });
 
-                // Add hover effect
-                row.addEventListener('mouseenter', function() {
-                    if (!this.classList.contains('table-primary')) {
-                        this.classList.add('table-active');
+                // Keyboard handler (Enter and Space)
+                row.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        selectDurationPreset(this);
                     }
                 });
-                row.addEventListener('mouseleave', function() {
-                    this.classList.remove('table-active');
+            });
+        }
+
+        function selectDurationPreset(row) {
+            const days = row.getAttribute('data-days');
+            const input = document.getElementById('logDurationDays');
+            input.value = days;
+
+            // Clear any validation state
+            input.classList.remove('is-invalid', 'is-valid');
+            input.setAttribute('aria-invalid', 'false');
+
+            // Highlight selected row
+            document.querySelectorAll('.duration-preset').forEach(r => r.classList.remove('table-primary'));
+            row.classList.add('table-primary');
+
+            // Announce to screen readers
+            const announcement = `Selected ${days} day${days > 1 ? 's' : ''} retention period`;
+            announceToScreenReader(announcement);
+        }
+
+        function setupFormValidation() {
+            const form = document.getElementById('collection-form');
+            const inputs = form.querySelectorAll('.form-control[aria-required="true"]');
+
+            // Add blur validation for better UX
+            inputs.forEach(input => {
+                input.addEventListener('blur', function() {
+                    validateField(this);
+                });
+
+                // Clear errors on input
+                input.addEventListener('input', function() {
+                    if (this.classList.contains('is-invalid')) {
+                        clearFieldError(this);
+                    }
                 });
             });
-        });
+        }
+
+        function validateField(field) {
+            let isValid = true;
+            let errorMessage = '';
+
+            // Check if field is empty and required
+            if (field.hasAttribute('aria-required') && field.value.trim() === '') {
+                isValid = false;
+                errorMessage = 'This field is required.';
+            }
+
+            // Additional validation for number fields
+            if (field.type === 'number' && field.value) {
+                const value = parseInt(field.value);
+                const min = parseInt(field.getAttribute('min'));
+
+                if (isNaN(value)) {
+                    isValid = false;
+                    errorMessage = 'Please enter a valid number.';
+                } else if (min && value < min) {
+                    isValid = false;
+                    errorMessage = `Value must be at least ${min}.`;
+                }
+            }
+
+            // Update field state (only show errors on blur if field was touched)
+            if (!isValid && field.value !== '') {
+                setFieldError(field, errorMessage);
+            }
+
+            return isValid;
+        }
+
+        function setFieldError(field, message) {
+            const errorElement = document.getElementById(`${field.id}-error`);
+
+            field.classList.remove('is-valid');
+            field.classList.add('is-invalid');
+            field.setAttribute('aria-invalid', 'true');
+
+            if (errorElement) {
+                errorElement.textContent = message;
+                errorElement.style.display = 'block';
+            }
+        }
+
+        function clearFieldError(field) {
+            const errorElement = document.getElementById(`${field.id}-error`);
+
+            field.classList.remove('is-invalid', 'is-valid');
+            field.setAttribute('aria-invalid', 'false');
+
+            if (errorElement) {
+                errorElement.textContent = '';
+                errorElement.style.display = 'none';
+            }
+        }
 
         async function loadCollection(id) {
             try {
@@ -197,9 +392,12 @@
             const saveButton = document.getElementById('save-button');
             const saveText = document.getElementById('save-text');
             const saveSpinner = document.getElementById('save-spinner');
+            const saveStatus = document.getElementById('save-button-status');
+
             saveButton.disabled = true;
-            saveText.style.display = 'none';
+            saveButton.setAttribute('aria-busy', 'true');
             saveSpinner.style.display = 'inline-block';
+            saveStatus.textContent = 'Saving collection...';
 
             try {
                 const response = await fetch('/api/log-collections', {
@@ -211,30 +409,39 @@
                 });
 
                 if (response.ok) {
-                    // Success - redirect to list
-                    window.location.href = '/LogCollections';
+                    // Success - show success state briefly then redirect
+                    saveStatus.textContent = 'Collection saved successfully. Redirecting...';
+                    setTimeout(() => {
+                        window.location.href = '/LogCollections';
+                    }, 500);
                 } else if (response.status === 400) {
                     // Validation errors
                     const errorData = await response.json();
                     displayValidationErrors(errorData);
+                    saveStatus.textContent = 'Please correct the errors below.';
                 } else if (response.status === 404) {
                     showError('Collection not found.');
+                    saveStatus.textContent = 'Error: Collection not found.';
                 } else {
                     const errorData = await response.json();
                     showError(errorData.detail || 'Failed to save collection: ' + response.statusText);
+                    saveStatus.textContent = 'Error saving collection.';
                 }
             } catch (error) {
                 console.error('Error saving collection:', error);
                 showError('Failed to save collection: ' + error.message);
+                saveStatus.textContent = 'Error saving collection.';
             } finally {
                 // Reset loading state
                 saveButton.disabled = false;
-                saveText.style.display = 'inline';
+                saveButton.removeAttribute('aria-busy');
                 saveSpinner.style.display = 'none';
             }
         });
 
         function displayValidationErrors(errorData) {
+            let firstErrorField = null;
+
             if (errorData.errors) {
                 // Standard validation problem details format
                 for (const [field, messages] of Object.entries(errorData.errors)) {
@@ -243,10 +450,24 @@
                     const inputElement = document.getElementById(fieldName);
 
                     if (errorElement && inputElement) {
-                        errorElement.textContent = messages.join(', ');
+                        const errorMessage = messages.join(', ');
+                        errorElement.textContent = errorMessage;
                         errorElement.style.display = 'block';
                         inputElement.classList.add('is-invalid');
+                        inputElement.setAttribute('aria-invalid', 'true');
+
+                        // Track first error field for focus
+                        if (!firstErrorField) {
+                            firstErrorField = inputElement;
+                        }
                     }
+                }
+
+                // Focus first error field for accessibility
+                if (firstErrorField) {
+                    firstErrorField.focus();
+                    // Scroll into view smoothly
+                    firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             } else {
                 showError('Validation failed. Please check your input.');
@@ -263,14 +484,30 @@
             });
 
             const inputElements = document.querySelectorAll('.form-control');
-            inputElements.forEach(el => el.classList.remove('is-invalid'));
+            inputElements.forEach(el => {
+                el.classList.remove('is-invalid', 'is-valid');
+                el.setAttribute('aria-invalid', 'false');
+            });
         }
 
         function showError(message) {
             const errorDiv = document.getElementById('error-message');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-            window.scrollTo(0, 0);
+            const errorText = document.getElementById('error-message-text');
+            errorText.textContent = message;
+            errorDiv.style.display = 'flex';
+            errorDiv.setAttribute('aria-live', 'assertive');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function announceToScreenReader(message) {
+            const status = document.getElementById('save-button-status');
+            status.textContent = message;
+            // Clear after announcement
+            setTimeout(() => {
+                if (status.textContent === message) {
+                    status.textContent = '';
+                }
+            }, 3000);
         }
     </script>
 }

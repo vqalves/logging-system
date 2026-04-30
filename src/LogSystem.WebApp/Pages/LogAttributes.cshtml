@@ -4,34 +4,64 @@
     ViewData["Title"] = "Log Attributes";
 }
 
-<h1 id="page-title">@ViewData["Title"]</h1>
+<nav class="breadcrumb-nav" aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/LogCollections">Log Collections</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Log Attributes</li>
+    </ol>
+</nav>
 
-<div class="mb-3">
-    <a href="/LogCollections" class="btn btn-secondary">Back to Collections</a>
-    <button id="create-button" class="btn btn-primary" style="display: none;">Create New Attribute</button>
+<div class="page-header-with-actions mb-4">
+    <div class="page-header-content">
+        <h1 class="page-title" id="page-title">@ViewData["Title"]</h1>
+        <p class="page-subtitle">Manage extraction attributes for log collection</p>
+    </div>
+    <div class="page-header-actions">
+        <a href="/LogCollections" class="btn btn-outline-secondary">Back to Collections</a>
+        <button id="create-button" class="btn btn-primary" style="display: none;">Create New Attribute</button>
+    </div>
 </div>
 
-<div id="error-message" class="alert alert-danger" style="display: none;"></div>
-<div id="success-message" class="alert alert-success" style="display: none;"></div>
+<div id="error-message" class="alert alert-danger alert-dismissible" role="alert" style="display: none;">
+    <div class="alert-icon" role="img" aria-label="Error icon"></div>
+    <div class="alert-content" id="error-message-text"></div>
+    <button type="button" class="btn-close" aria-label="Close alert" onclick="document.getElementById('error-message').style.display='none'">
+        <span aria-hidden="true">&times;</span>
+    </button>
+</div>
+<div id="success-message" class="alert alert-success alert-dismissible" role="alert" style="display: none;">
+    <div class="alert-icon" role="img" aria-label="Success icon"></div>
+    <div class="alert-content" id="success-message-text"></div>
+    <button type="button" class="btn-close" aria-label="Close alert" onclick="document.getElementById('success-message').style.display='none'">
+        <span aria-hidden="true">&times;</span>
+    </button>
+</div>
 
-<table class="table table-striped" id="attributes-table">
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>SQL Column Name</th>
-            <th>Attribute Type</th>
-            <th>Extraction Style</th>
-            <th>Extraction Expression</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr id="loading-row">
-            <td colspan="7" class="text-center">Loading...</td>
-        </tr>
-    </tbody>
-</table>
+<div class="section">
+    <div class="table-card">
+        <div class="table-responsive">
+            <table class="table table-hover" id="attributes-table">
+                <thead>
+                    <tr>
+                        <th class="col-id">ID</th>
+                        <th class="col-expand">Name</th>
+                        <th class="col-expand">SQL Column Name</th>
+                        <th style="width: 140px;">Type</th>
+                        <th style="width: 140px;">Extraction Style</th>
+                        <th class="col-expand">Extraction Expression</th>
+                        <th class="col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr id="loading-row" class="skeleton-row">
+                        <td colspan="7"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
 @section Scripts {
     <script>
@@ -100,7 +130,16 @@
             const tbody = document.querySelector('#attributes-table tbody');
 
             if (attributes.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center">No attributes found</td></tr>';
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="table-empty">
+                            <div class="table-empty-message">No attributes defined</div>
+                            <div class="table-empty-description">Create your first log attribute to start extracting data from logs</div>
+                            <div class="mt-3">
+                                <button class="btn btn-primary btn-lg" onclick="window.location.href='/LogAttributes/Manage?logCollectionId=${logCollectionId}'">Create First Attribute</button>
+                            </div>
+                        </td>
+                    </tr>`;
                 return;
             }
 
@@ -109,15 +148,17 @@
             attributes.forEach(attribute => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${attribute.id}</td>
+                    <td class="col-id">${attribute.id}</td>
                     <td>${escapeHtml(attribute.name)}</td>
-                    <td>${escapeHtml(attribute.sqlColumnName)}</td>
-                    <td>${escapeHtml(attribute.attributeTypeID)}</td>
-                    <td>${escapeHtml(attribute.extractionStyleID)}</td>
-                    <td><code>${escapeHtml(attribute.extractionExpression)}</code></td>
-                    <td>
-                        <a href="/LogAttributes/Edit/${attribute.id}" class="btn btn-sm btn-primary">Edit</a>
-                        <button class="btn btn-sm btn-danger" onclick="deleteAttribute(${attribute.id}, '${escapeHtml(attribute.name)}')">Delete</button>
+                    <td><code class="text-primary">${escapeHtml(attribute.sqlColumnName)}</code></td>
+                    <td><span class="badge bg-info">${escapeHtml(attribute.attributeTypeID)}</span></td>
+                    <td><span class="badge bg-secondary">${escapeHtml(attribute.extractionStyleID)}</span></td>
+                    <td class="col-truncate" title="${escapeHtml(attribute.extractionExpression)}"><code>${escapeHtml(attribute.extractionExpression)}</code></td>
+                    <td class="col-actions">
+                        <div class="btn-group-table">
+                            <a href="/LogAttributes/Edit/${attribute.id}" class="btn btn-sm btn-primary" title="Edit attribute">Edit</a>
+                            <button class="btn btn-sm btn-danger" onclick="deleteAttribute(${attribute.id}, '${escapeHtml(attribute.name)}')" title="Delete attribute">Delete</button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -151,29 +192,28 @@
 
         function showError(message) {
             const errorDiv = document.getElementById('error-message');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
+            const errorText = document.getElementById('error-message-text');
+            errorText.textContent = message;
+            errorDiv.style.display = 'flex';
 
             // Hide success message
             document.getElementById('success-message').style.display = 'none';
 
-            // Auto-hide after 5 seconds
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 5000);
+            // Manual dismiss only for errors (no auto-hide)
         }
 
         function showSuccess(message) {
             const successDiv = document.getElementById('success-message');
-            successDiv.textContent = message;
-            successDiv.style.display = 'block';
+            const successText = document.getElementById('success-message-text');
+            successText.textContent = message;
+            successDiv.style.display = 'flex';
 
             // Hide error message
             document.getElementById('error-message').style.display = 'none';
 
-            // Auto-hide after 3 seconds
+            // Auto-hide after 3 seconds (success messages)
             setTimeout(() => {
-                successDiv.style.display = 'none';
+                dismissAlert(successDiv);
             }, 3000);
         }
 

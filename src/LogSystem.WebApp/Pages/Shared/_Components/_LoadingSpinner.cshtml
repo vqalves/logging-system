@@ -1,0 +1,37 @@
+@*
+    Reusable Loading Spinner Component
+
+    Usage:
+    @{
+        ViewData["SpinnerId"] = "my-spinner"; // optional
+        ViewData["SpinnerSize"] = "md"; // optional: sm, md (default), lg
+        ViewData["SpinnerMessage"] = "Loading..."; // optional
+        ViewData["SpinnerVisible"] = true; // optional, default false
+    }
+    @await Html.PartialAsync("_Components/_LoadingSpinner")
+*@
+
+@{
+    var spinnerId = ViewData["SpinnerId"]?.ToString() ?? "loading-spinner";
+    var spinnerSize = ViewData["SpinnerSize"]?.ToString() ?? "md";
+    var spinnerMessage = ViewData["SpinnerMessage"]?.ToString() ?? "Loading...";
+    var visible = ViewData["SpinnerVisible"] as bool? ?? false;
+    var displayStyle = visible ? "" : "display: none;";
+
+    var spinnerClass = spinnerSize switch
+    {
+        "sm" => "spinner-border-sm",
+        "lg" => "spinner-border spinner-lg",
+        _ => "spinner-border"
+    };
+}
+
+<div id="@spinnerId" class="loading-spinner text-center py-4" style="@displayStyle">
+    <div class="@spinnerClass text-primary" role="status">
+        <span class="visually-hidden">@spinnerMessage</span>
+    </div>
+    @if (!string.IsNullOrEmpty(spinnerMessage))
+    {
+        <p class="mt-2 text-muted">@spinnerMessage</p>
+    }
+</div>

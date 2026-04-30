@@ -1,22 +1,62 @@
-html {
-  font-size: 14px;
-}
+/* ============================================================================
+   LogSystem WebApp - Main Stylesheet
 
-@media (min-width: 768px) {
-  html {
-    font-size: 16px;
-  }
-}
+   This file imports all CSS modules in the correct order.
+   Order matters: variables first, then base styles, then components.
+   ============================================================================ */
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
-}
+/* -------------------------------------------------------------------------
+   1. Design Tokens & Variables
+   Must be loaded first as other modules depend on these custom properties
+   ------------------------------------------------------------------------- */
+@import url("variables.css");
 
-html {
-  position: relative;
-  min-height: 100%;
-}
+/* -------------------------------------------------------------------------
+   2. Utility Classes
+   Helper classes that can be used throughout the application
+   ------------------------------------------------------------------------- */
+@import url("utilities.css");
 
-body {
-  margin-bottom: 60px;
+/* -------------------------------------------------------------------------
+   3. Layout System
+   Page structure and layout components
+   ------------------------------------------------------------------------- */
+@import url("layouts.css");
+
+/* -------------------------------------------------------------------------
+   4. Component Styles
+   Reusable UI components (buttons, cards, alerts, etc.)
+   ------------------------------------------------------------------------- */
+@import url("components.css");
+
+/* -------------------------------------------------------------------------
+   5. Form Styles
+   Form controls, validation states, and form layouts
+   ------------------------------------------------------------------------- */
+@import url("forms.css");
+
+/* -------------------------------------------------------------------------
+   6. Table Styles
+   Enhanced table styling for data display
+   ------------------------------------------------------------------------- */
+@import url("tables.css");
+
+/* -------------------------------------------------------------------------
+   7. Accessibility Styles
+   WCAG AA compliance enhancements (Step 10)
+   ------------------------------------------------------------------------- */
+@import url("accessibility.css");
+
+/* ============================================================================
+   Legacy/Override Styles
+   Preserve existing functionality while transitioning to new design system
+   ============================================================================ */
+
+/* Focus styles for interactive elements */
+.btn:focus,
+.btn:active:focus,
+.btn-link.nav-link:focus,
+.form-control:focus,
+.form-check-input:focus {
+  box-shadow: var(--shadow-focus);
 }

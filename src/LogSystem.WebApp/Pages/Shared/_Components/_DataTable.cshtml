@@ -1,0 +1,62 @@
+@*
+    Reusable DataTable Component
+
+    Usage:
+    @{
+        ViewData["TableId"] = "my-table";
+        ViewData["TableClass"] = "table-hover"; // optional
+        ViewData["Columns"] = new[] { "ID", "Name", "Actions" };
+        ViewData["ColumnWidths"] = new[] { "col-id", "col-expand", "col-actions" }; // optional
+        ViewData["ShowLoading"] = true; // optional, default true
+        ViewData["EmptyMessage"] = "No items found"; // optional
+    }
+    @await Html.PartialAsync("_Components/_DataTable")
+*@
+
+@{
+    var tableId = ViewData["TableId"]?.ToString() ?? "data-table";
+    var tableClass = ViewData["TableClass"]?.ToString() ?? "";
+    var columns = ViewData["Columns"] as string[] ?? new string[0];
+    var columnWidths = ViewData["ColumnWidths"] as string[] ?? new string[0];
+    var showLoading = ViewData["ShowLoading"] as bool? ?? true;
+    var emptyMessage = ViewData["EmptyMessage"]?.ToString() ?? "No items found";
+    var headerNote = ViewData["HeaderNote"]?.ToString();
+}
+
+<div class="table-card">
+    <div class="table-responsive">
+        <table class="table @tableClass" id="@tableId">
+            <thead>
+                @if (!string.IsNullOrEmpty(headerNote))
+                {
+                    <tr>
+                        <th colspan="@columns.Length" class="table-secondary text-center py-2">
+                            <small class="text-muted">@headerNote</small>
+                        </th>
+                    </tr>
+                }
+                <tr>
+                    @for (int i = 0; i < columns.Length; i++)
+                    {
+                        var width = i < columnWidths.Length ? columnWidths[i] : "";
+                        <th class="@width">@columns[i]</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (showLoading)
+                {
+                    <tr id="loading-row" class="skeleton-row">
+                        <td colspan="@columns.Length"></td>
+                    </tr>
+                }
+                else
+                {
+                    <tr id="empty-row">
+                        <td colspan="@columns.Length" class="text-center text-muted py-4">@emptyMessage</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

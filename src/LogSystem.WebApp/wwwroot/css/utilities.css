@@ -1,0 +1,306 @@
+/* ============================================================================
+   Utility Classes
+   LogSystem WebApp - Common patterns and helper classes
+   ============================================================================ */
+
+/* -------------------------------------------------------------------------
+   Spacing Utilities (extending Bootstrap)
+   ------------------------------------------------------------------------- */
+
+.mt-section { margin-top: var(--spacing-section) !important; }
+.mb-section { margin-bottom: var(--spacing-section) !important; }
+.my-section {
+  margin-top: var(--spacing-section) !important;
+  margin-bottom: var(--spacing-section) !important;
+}
+
+.mt-component { margin-top: var(--spacing-component) !important; }
+.mb-component { margin-bottom: var(--spacing-component) !important; }
+.my-component {
+  margin-top: var(--spacing-component) !important;
+  margin-bottom: var(--spacing-component) !important;
+}
+
+.pt-section { padding-top: var(--spacing-section) !important; }
+.pb-section { padding-bottom: var(--spacing-section) !important; }
+.py-section {
+  padding-top: var(--spacing-section) !important;
+  padding-bottom: var(--spacing-section) !important;
+}
+
+/* -------------------------------------------------------------------------
+   Text Utilities
+   ------------------------------------------------------------------------- */
+
+.text-xs { font-size: var(--font-size-xs) !important; }
+.text-sm { font-size: var(--font-size-sm) !important; }
+.text-base { font-size: var(--font-size-base) !important; }
+.text-lg { font-size: var(--font-size-lg) !important; }
+.text-xl { font-size: var(--font-size-xl) !important; }
+
+.text-medium { font-weight: var(--font-weight-medium) !important; }
+.text-semibold { font-weight: var(--font-weight-semibold) !important; }
+
+.text-secondary-color { color: var(--color-text-secondary) !important; }
+.text-disabled { color: var(--color-text-disabled) !important; }
+
+.line-height-tight { line-height: var(--line-height-tight) !important; }
+.line-height-normal { line-height: var(--line-height-normal) !important; }
+.line-height-relaxed { line-height: var(--line-height-relaxed) !important; }
+
+/* -------------------------------------------------------------------------
+   Background Utilities
+   ------------------------------------------------------------------------- */
+
+.bg-secondary-light { background-color: var(--color-bg-secondary) !important; }
+.bg-tertiary { background-color: var(--color-bg-tertiary) !important; }
+
+.bg-primary-light { background-color: var(--color-primary-light) !important; }
+.bg-success-light { background-color: var(--color-success-light) !important; }
+.bg-warning-light { background-color: var(--color-warning-light) !important; }
+.bg-danger-light { background-color: var(--color-danger-light) !important; }
+.bg-info-light { background-color: var(--color-info-light) !important; }
+
+/* -------------------------------------------------------------------------
+   Border Utilities
+   ------------------------------------------------------------------------- */
+
+.border-light { border-color: var(--color-border-light) !important; }
+.border-base { border-color: var(--color-border) !important; }
+.border-dark { border-color: var(--color-border-dark) !important; }
+
+.rounded-sm { border-radius: var(--border-radius-sm) !important; }
+.rounded-base { border-radius: var(--border-radius-base) !important; }
+.rounded-md { border-radius: var(--border-radius-md) !important; }
+.rounded-lg { border-radius: var(--border-radius-lg) !important; }
+.rounded-xl { border-radius: var(--border-radius-xl) !important; }
+
+/* -------------------------------------------------------------------------
+   Shadow Utilities
+   ------------------------------------------------------------------------- */
+
+.shadow-sm { box-shadow: var(--shadow-sm) !important; }
+.shadow { box-shadow: var(--shadow-base) !important; }
+.shadow-md { box-shadow: var(--shadow-md) !important; }
+.shadow-lg { box-shadow: var(--shadow-lg) !important; }
+.shadow-xl { box-shadow: var(--shadow-xl) !important; }
+.shadow-none { box-shadow: none !important; }
+
+/* -------------------------------------------------------------------------
+   Flexbox Utilities (extending Bootstrap)
+   ------------------------------------------------------------------------- */
+
+.flex-gap-1 { gap: var(--spacing-1); }
+.flex-gap-2 { gap: var(--spacing-2); }
+.flex-gap-3 { gap: var(--spacing-3); }
+.flex-gap-4 { gap: var(--spacing-4); }
+.flex-gap-6 { gap: var(--spacing-6); }
+.flex-gap-8 { gap: var(--spacing-8); }
+
+/* -------------------------------------------------------------------------
+   Display & Visibility
+   ------------------------------------------------------------------------- */
+
+.overflow-auto { overflow: auto; }
+.overflow-hidden { overflow: hidden; }
+.overflow-x-auto { overflow-x: auto; }
+.overflow-y-auto { overflow-y: auto; }
+
+/* -------------------------------------------------------------------------
+   Interactive States
+   ------------------------------------------------------------------------- */
+
+.cursor-pointer { cursor: pointer; }
+.cursor-not-allowed { cursor: not-allowed; }
+
+.hover-lift {
+  transition: var(--transition-transform);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+.hover-shadow {
+  transition: var(--transition-all);
+}
+
+.hover-shadow:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* -------------------------------------------------------------------------
+   Accessibility Utilities
+   ------------------------------------------------------------------------- */
+
+.sr-only-focusable:not(:focus):not(:focus-within) {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Skip to main content link */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-primary);
+  color: white;
+  padding: var(--spacing-2) var(--spacing-4);
+  text-decoration: none;
+  z-index: var(--z-index-tooltip);
+  border-radius: var(--border-radius-base);
+}
+
+.skip-link:focus {
+  top: var(--spacing-2);
+  left: var(--spacing-2);
+}
+
+/* -------------------------------------------------------------------------
+   Animation Utilities
+   ------------------------------------------------------------------------- */
+
+.transition-fast { transition: var(--transition-fast); }
+.transition-base { transition: var(--transition-base); }
+.transition-slow { transition: var(--transition-slow); }
+
+.transition-all { transition: var(--transition-all); }
+.transition-colors { transition: var(--transition-colors); }
+.transition-opacity { transition: var(--transition-opacity); }
+
+.fade-in {
+  animation: fadeIn var(--transition-slow);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* -------------------------------------------------------------------------
+   Loading States
+   ------------------------------------------------------------------------- */
+
+.spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spinner 0.75s linear infinite;
+}
+
+.spinner-sm {
+  width: 0.875rem;
+  height: 0.875rem;
+  border-width: 2px;
+}
+
+.spinner-lg {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-width: 3px;
+}
+
+@keyframes spinner {
+  to { transform: rotate(360deg); }
+}
+
+/* -------------------------------------------------------------------------
+   Width Constraints
+   ------------------------------------------------------------------------- */
+
+.max-w-container { max-width: var(--container-max-width); }
+.max-w-content { max-width: var(--content-max-width); }
+.max-w-reading { max-width: var(--reading-max-width); }
+
+/* -------------------------------------------------------------------------
+   Responsive Utilities
+   ------------------------------------------------------------------------- */
+
+/* Show only on desktop (1366px+) */
+@media (max-width: 1365px) {
+  .desktop-only { display: none !important; }
+}
+
+/* Show only on mobile/tablet */
+@media (min-width: 1366px) {
+  .mobile-only { display: none !important; }
+}
+
+/* -------------------------------------------------------------------------
+   Status Indicators
+   ------------------------------------------------------------------------- */
+
+.status-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--border-radius-circle);
+  vertical-align: middle;
+  margin-right: var(--spacing-2);
+}
+
+.status-dot-success { background-color: var(--color-success); }
+.status-dot-warning { background-color: var(--color-warning); }
+.status-dot-danger { background-color: var(--color-danger); }
+.status-dot-info { background-color: var(--color-info); }
+.status-dot-muted { background-color: var(--color-gray-400); }
+
+/* -------------------------------------------------------------------------
+   Badge Variants (extending Bootstrap)
+   ------------------------------------------------------------------------- */
+
+.badge-subtle {
+  background-color: var(--color-gray-200);
+  color: var(--color-gray-800);
+}
+
+.badge-primary-subtle {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.badge-success-subtle {
+  background-color: var(--color-success-light);
+  color: var(--color-success-dark);
+}
+
+.badge-warning-subtle {
+  background-color: var(--color-warning-light);
+  color: var(--color-warning-dark);
+}
+
+.badge-danger-subtle {
+  background-color: var(--color-danger-light);
+  color: var(--color-danger-dark);
+}
+
+/* -------------------------------------------------------------------------
+   Print Utilities
+   ------------------------------------------------------------------------- */
+
+@media print {
+  .no-print { display: none !important; }
+
+  .page-break-before { page-break-before: always; }
+  .page-break-after { page-break-after: always; }
+  .page-break-inside-avoid { page-break-inside: avoid; }
+}

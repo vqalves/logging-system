@@ -49,11 +49,12 @@
     </div>
 
     <div class="mb-3">
-        <button type="submit" class="btn btn-primary" id="save-button">
-            <span id="save-text">Save</span>
-            <span id="save-spinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
+        <button type="submit" class="btn btn-primary" id="save-button" aria-describedby="save-button-status">
+            <span id="save-text">Save Changes</span>
+            <span id="save-spinner" class="spinner-border spinner-border-sm ms-2" style="display: none;" role="status" aria-label="Saving..."></span>
         </button>
         <button type="button" class="btn btn-secondary" id="cancel-button">Cancel</button>
+        <span id="save-button-status" class="visually-hidden" role="status" aria-live="polite"></span>
     </div>
 </form>
 
@@ -154,9 +155,12 @@
             const saveButton = document.getElementById('save-button');
             const saveText = document.getElementById('save-text');
             const saveSpinner = document.getElementById('save-spinner');
+            const saveStatus = document.getElementById('save-button-status');
+
             saveButton.disabled = true;
-            saveText.style.display = 'none';
+            saveButton.setAttribute('aria-busy', 'true');
             saveSpinner.style.display = 'inline-block';
+            saveStatus.textContent = 'Updating attribute...';
 
             try {
                 const response = await fetch(`/api/log-attributes/${attributeId}`, {
@@ -168,25 +172,32 @@
                 });
 
                 if (response.ok) {
-                    // Success - redirect to list
-                    window.location.href = `/LogAttributes/${currentAttribute.logCollectionID}`;
+                    // Success - show success state briefly then redirect
+                    saveStatus.textContent = 'Attribute updated successfully. Redirecting...';
+                    setTimeout(() => {
+                        window.location.href = `/LogAttributes/${currentAttribute.logCollectionID}`;
+                    }, 500);
                 } else if (response.status === 400) {
                     // Validation errors
                     const errorData = await response.json();
                     displayValidationErrors(errorData);
+                    saveStatus.textContent = 'Please correct the errors below.';
                 } else if (response.status === 404) {
                     showError('Attribute not found.');
+                    saveStatus.textContent = 'Error: Attribute not found.';
                 } else {
                     const errorData = await response.json();
                     showError(errorData.detail || 'Failed to update attribute: ' + response.statusText);
+                    saveStatus.textContent = 'Error updating attribute.';
                 }
             } catch (error) {
                 console.error('Error updating attribute:', error);
                 showError('Failed to update attribute: ' + error.message);
+                saveStatus.textContent = 'Error updating attribute.';
             } finally {
                 // Reset loading state
                 saveButton.disabled = false;
-                saveText.style.display = 'inline';
+                saveButton.removeAttribute('aria-busy');
                 saveSpinner.style.display = 'none';
             }
         });

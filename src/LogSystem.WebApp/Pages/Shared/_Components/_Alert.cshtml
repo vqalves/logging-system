@@ -1,0 +1,57 @@
+@*
+    Reusable Alert Component
+
+    Usage:
+    @{
+        ViewData["AlertId"] = "my-alert";
+        ViewData["AlertType"] = "success"; // success, danger, warning, info
+        ViewData["AlertMessage"] = "Operation completed successfully";
+        ViewData["AlertDismissible"] = true; // optional, default true
+        ViewData["AlertVisible"] = false; // optional, default false (hidden)
+    }
+    @await Html.PartialAsync("_Components/_Alert")
+*@
+
+@{
+    var alertId = ViewData["AlertId"]?.ToString() ?? "alert-message";
+    var alertType = ViewData["AlertType"]?.ToString() ?? "info";
+    var alertMessage = ViewData["AlertMessage"]?.ToString() ?? "";
+    var dismissible = ViewData["AlertDismissible"] as bool? ?? true;
+    var visible = ViewData["AlertVisible"] as bool? ?? false;
+    var displayStyle = visible ? "" : "display: none;";
+
+    var alertClass = $"alert-{alertType}";
+    var iconLabel = alertType switch
+    {
+        "success" => "Success icon",
+        "danger" => "Error icon",
+        "warning" => "Warning icon",
+        "info" => "Information icon",
+        _ => "Alert icon"
+    };
+}
+
+<div id="@alertId" class="alert @alertClass @(dismissible ? "alert-dismissible" : "")" role="alert" style="@displayStyle">
+    <div class="alert-icon" role="img" aria-label="@iconLabel"></div>
+    <div class="alert-content" id="@(alertId)-text">@alertMessage</div>
+    @if (dismissible)
+    {
+        <button type="button" class="btn-close" aria-label="Close alert" onclick="document.getElementById('@alertId').style.display='none'">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        // Auto-dismiss success messages after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            const alert = document.getElementById('@alertId');
+            if (alert && '@alertType' === 'success' && alert.style.display !== 'none') {
+                setTimeout(() => {
+                    alert.style.display = 'none';
+                }, 5000);
+            }
+        });
+    </script>
+}

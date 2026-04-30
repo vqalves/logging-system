@@ -1,10 +1,55 @@
 ﻿@page
 @model IndexModel
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Home";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="page-title-wrapper">
+    <h1 class="page-title">LogSystem</h1>
+    <p class="page-subtitle">Centralized logging and analytics platform</p>
+</div>
+
+<div class="page-content">
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h2 class="h4 mb-3">Log Collections</h2>
+                    <p class="text-secondary mb-3">Manage your log collections, configure retention policies, and monitor collection metrics in real-time.</p>
+                    <a href="/LogCollections" class="btn btn-primary">View Collections</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h2 class="h4 mb-3">Search Logs</h2>
+                    <p class="text-secondary mb-3">Query and filter logs across collections using powerful search capabilities and custom attributes.</p>
+                    <a href="/LogCollections" class="btn btn-outline-primary">Get Started</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h2 class="h4 mb-3">Log Attributes</h2>
+                    <p class="text-secondary mb-3">Define custom attributes to extract and index specific data from your log messages for efficient searching.</p>
+                    <a href="/LogCollections" class="btn btn-outline-primary">Manage Attributes</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2 class="section-title">Getting Started</h2>
+        <div class="text-content">
+            <p>Welcome to LogSystem, a comprehensive logging solution designed to help you collect, store, and analyze logs from your applications.</p>
+            <ol class="lead">
+                <li>Create a new log collection for your application</li>
+                <li>Define custom attributes to extract relevant data from log messages</li>
+                <li>Start sending logs to the configured endpoint</li>
+                <li>Search and analyze your logs using the powerful query interface</li>
+            </ol>
+        </div>
+    </div>
 </div>

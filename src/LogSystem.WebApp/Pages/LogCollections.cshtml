@@ -4,41 +4,72 @@
     ViewData["Title"] = "Log Collections";
 }
 
-<h1>@ViewData["Title"]</h1>
+<nav class="breadcrumb-nav" aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Log Collections</li>
+    </ol>
+</nav>
 
-<div class="mb-3">
-    <a href="/LogCollections/Manage" class="btn btn-primary">Create New Collection</a>
+<div class="page-header-with-actions mb-4">
+    <div class="page-header-content">
+        <h1 class="page-title">Log Collections</h1>
+        <p class="page-subtitle">Manage log collections and monitor collection metrics</p>
+    </div>
+    <div class="page-header-actions">
+        <a href="/LogCollections/Manage" class="btn btn-primary">Create New Collection</a>
+    </div>
 </div>
 
-<div id="error-message" class="alert alert-danger" style="display: none;"></div>
-<div id="success-message" class="alert alert-success" style="display: none;"></div>
+<div id="error-message" class="alert alert-danger alert-dismissible" role="alert" style="display: none;">
+    <div class="alert-icon" role="img" aria-label="Error icon"></div>
+    <div class="alert-content" id="error-message-text"></div>
+    <button type="button" class="btn-close" aria-label="Close alert" onclick="document.getElementById('error-message').style.display='none'">
+        <span aria-hidden="true">&times;</span>
+    </button>
+</div>
+<div id="success-message" class="alert alert-success alert-dismissible" role="alert" style="display: none;">
+    <div class="alert-icon" role="img" aria-label="Success icon"></div>
+    <div class="alert-content" id="success-message-text"></div>
+    <button type="button" class="btn-close" aria-label="Close alert" onclick="document.getElementById('success-message').style.display='none'">
+        <span aria-hidden="true">&times;</span>
+    </button>
+</div>
 
-<table class="table table-striped" id="collections-table">
-    <thead>
-        <tr>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th colspan="2" style="background-color:#ccc">(60s window)</th>
-            <th></th>
-        </tr>
-        <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Table Name</th>
-            <th>Log Duration (Days)</th>
-            <th style="background-color:#ccc">Avg Msg/sec</th>
-            <th style="background-color:#ccc">Failed</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr id="loading-row">
-            <td colspan="7" class="text-center">Loading...</td>
-        </tr>
-    </tbody>
-</table>
+<div class="section">
+    <div class="section-header">
+        <h2 class="section-title">Collections Overview</h2>
+        <p class="section-subtitle">View and manage all log collections with real-time metrics</p>
+    </div>
+
+    <div class="table-card">
+        <div class="table-responsive">
+            <table class="table table-hover" id="collections-table">
+                <thead>
+                    <tr>
+                        <th colspan="7" class="table-secondary text-center py-2">
+                            <small class="text-muted">Real-time Metrics (60s window)</small>
+                        </th>
+                    </tr>
+                    <tr>
+                        <th class="col-id">ID</th>
+                        <th class="col-expand">Name</th>
+                        <th class="col-expand">Table Name</th>
+                        <th class="col-numeric" style="width: 140px;">Duration (Days)</th>
+                        <th class="col-numeric" style="width: 120px;">Avg Msg/sec</th>
+                        <th class="col-numeric" style="width: 100px;">Failed</th>
+                        <th class="col-actions-lg">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr id="loading-row" class="skeleton-row">
+                        <td colspan="7"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
 @section Scripts {
     <script>
@@ -72,7 +103,16 @@
             const tbody = document.querySelector('#collections-table tbody');
 
             if (collections.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center">No collections found</td></tr>';
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="table-empty">
+                            <div class="table-empty-message">No collections found</div>
+                            <div class="table-empty-description">Get started by creating your first log collection</div>
+                            <div class="mt-3">
+                                <a href="/LogCollections/Manage" class="btn btn-primary btn-lg">Create New Collection</a>
+                            </div>
+                        </td>
+                    </tr>`;
                 return;
             }
 
@@ -82,17 +122,19 @@
                 const row = document.createElement('tr');
                 row.setAttribute('data-client-id', collection.clientId);
                 row.innerHTML = `
-                    <td>${collection.id}</td>
+                    <td class="col-id">${collection.id}</td>
                     <td>${escapeHtml(collection.name)}</td>
                     <td>${escapeHtml(collection.tableName)}</td>
-                    <td>${collection.logDurationDays}</td>
-                    <td class="metric-avg-msg-sec" data-client-id="${escapeHtml(collection.clientId)}">-</td>
-                    <td class="metric-failed-count" data-client-id="${escapeHtml(collection.clientId)}">-</td>
-                    <td>
-                        <a href="/LogCollections/Manage/${collection.id}" class="btn btn-sm btn-primary">Edit</a>
-                        <a href="/LogAttributes/${collection.id}" class="btn btn-sm btn-info">Attributes</a>
-                        <a href="/SearchLogs?LogCollectionId=${collection.id}" class="btn btn-sm btn-success">Search Logs</a>
-                        <button class="btn btn-sm btn-danger" onclick="deleteCollection(${collection.id}, '${escapeHtml(collection.name)}')">Delete</button>
+                    <td class="col-numeric">${collection.logDurationDays}</td>
+                    <td class="col-numeric metric-avg-msg-sec" data-client-id="${escapeHtml(collection.clientId)}">-</td>
+                    <td class="col-numeric metric-failed-count" data-client-id="${escapeHtml(collection.clientId)}">-</td>
+                    <td class="col-actions-lg">
+                        <div class="btn-group-table">
+                            <a href="/LogCollections/Manage/${collection.id}" class="btn btn-sm btn-primary" title="Edit collection">Edit</a>
+                            <a href="/LogAttributes/${collection.id}" class="btn btn-sm btn-secondary" title="Manage attributes">Attributes</a>
+                            <a href="/SearchLogs?LogCollectionId=${collection.id}" class="btn btn-sm btn-success" title="Search logs">Search</a>
+                            <button class="btn btn-sm btn-danger" onclick="deleteCollection(${collection.id}, '${escapeHtml(collection.name)}')" title="Delete collection">Delete</button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -126,29 +168,28 @@
 
         function showError(message) {
             const errorDiv = document.getElementById('error-message');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
+            const errorText = document.getElementById('error-message-text');
+            errorText.textContent = message;
+            errorDiv.style.display = 'flex';
 
             // Hide success message
             document.getElementById('success-message').style.display = 'none';
 
-            // Auto-hide after 5 seconds
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 5000);
+            // Manual dismiss only for errors (no auto-hide)
         }
 
         function showSuccess(message) {
             const successDiv = document.getElementById('success-message');
-            successDiv.textContent = message;
-            successDiv.style.display = 'block';
+            const successText = document.getElementById('success-message-text');
+            successText.textContent = message;
+            successDiv.style.display = 'flex';
 
             // Hide error message
             document.getElementById('error-message').style.display = 'none';
 
-            // Auto-hide after 3 seconds
+            // Auto-hide after 3 seconds (success messages)
             setTimeout(() => {
-                successDiv.style.display = 'none';
+                dismissAlert(successDiv);
             }, 3000);
         }
 
@@ -199,9 +240,18 @@
             document.querySelectorAll('.metric-avg-msg-sec').forEach(cell => {
                 const clientId = cell.getAttribute('data-client-id');
                 const metric = metricsMap.get(clientId);
+                const oldValue = cell.textContent;
 
                 if (metric) {
-                    cell.textContent = metric.averageMessagesPerSecond.toFixed(2);
+                    const newValue = metric.averageMessagesPerSecond.toFixed(2);
+
+                    // Add pulse animation if value changed
+                    if (oldValue !== '-' && oldValue !== newValue) {
+                        cell.classList.add('metric-updated');
+                        setTimeout(() => cell.classList.remove('metric-updated'), 300);
+                    }
+
+                    cell.textContent = newValue;
 
                     // Add visual indicator for active processing
                     if (metric.averageMessagesPerSecond > 0) {
@@ -218,9 +268,18 @@
             document.querySelectorAll('.metric-failed-count').forEach(cell => {
                 const clientId = cell.getAttribute('data-client-id');
                 const metric = metricsMap.get(clientId);
+                const oldValue = cell.textContent;
 
                 if (metric) {
-                    cell.textContent = metric.failedCount;
+                    const newValue = String(metric.failedCount);
+
+                    // Add pulse animation if value changed
+                    if (oldValue !== '-' && oldValue !== newValue) {
+                        cell.classList.add('metric-updated');
+                        setTimeout(() => cell.classList.remove('metric-updated'), 300);
+                    }
+
+                    cell.textContent = newValue;
 
                     // Add visual indicator for failures
                     if (metric.failedCount > 0) {

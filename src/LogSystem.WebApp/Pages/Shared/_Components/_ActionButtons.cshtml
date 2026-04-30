@@ -1,0 +1,105 @@
+@*
+    Reusable Action Buttons Component
+
+    Usage:
+    @{
+        ViewData["EntityId"] = "123";
+        ViewData["EntityName"] = "Collection Name"; // for confirmation messages
+        ViewData["EditUrl"] = "/LogCollections/Manage?id=123"; // optional
+        ViewData["DeleteUrl"] = "/api/collections/123"; // optional
+        ViewData["ViewUrl"] = "/LogCollections/View?id=123"; // optional
+        ViewData["ManageAttributesUrl"] = "/LogAttributes?collectionId=123"; // optional
+        ViewData["CustomButtons"] = new[] {
+            new { Text = "Custom", Url = "/custom", Class = "btn-info", Icon = "icon-name" }
+        }; // optional
+        ViewData["OnDeleteSuccess"] = "handleDeleteSuccess"; // optional JS callback
+        ViewData["ButtonSize"] = "sm"; // optional: sm, md (default), lg
+    }
+    @await Html.PartialAsync("_Components/_ActionButtons")
+*@
+
+@{
+    var entityId = ViewData["EntityId"]?.ToString();
+    var entityName = ViewData["EntityName"]?.ToString() ?? "item";
+    var editUrl = ViewData["EditUrl"]?.ToString();
+    var deleteUrl = ViewData["DeleteUrl"]?.ToString();
+    var viewUrl = ViewData["ViewUrl"]?.ToString();
+    var manageAttributesUrl = ViewData["ManageAttributesUrl"]?.ToString();
+    var customButtons = ViewData["CustomButtons"] as dynamic[];
+    var onDeleteSuccess = ViewData["OnDeleteSuccess"]?.ToString() ?? "location.reload()";
+    var buttonSize = ViewData["ButtonSize"]?.ToString() ?? "sm";
+    var btnSizeClass = buttonSize == "sm" ? "btn-sm" : buttonSize == "lg" ? "btn-lg" : "";
+}
+
+<div class="btn-group btn-group-@buttonSize action-buttons" role="group" aria-label="Actions for @entityName">
+    @if (!string.IsNullOrEmpty(editUrl))
+    {
+        <a href="@editUrl" class="btn btn-outline-primary @btnSizeClass" aria-label="Edit @entityName">
+            <span aria-hidden="true">Edit</span>
+        </a>
+    }
+
+    @if (!string.IsNullOrEmpty(viewUrl))
+    {
+        <a href="@viewUrl" class="btn btn-outline-secondary @btnSizeClass" aria-label="View @entityName">
+            <span aria-hidden="true">View</span>
+        </a>
+    }
+
+    @if (!string.IsNullOrEmpty(manageAttributesUrl))
+    {
+        <a href="@manageAttributesUrl" class="btn btn-outline-info @btnSizeClass" aria-label="Manage attributes for @entityName">
+            <span aria-hidden="true">Attributes</span>
+        </a>
+    }
+
+    @if (customButtons != null)
+    {
+        foreach (var button in customButtons)
+        {
+            <a href="@button.Url" class="btn @button.Class @btnSizeClass" aria-label="@button.Text for @entityName">
+                <span aria-hidden="true">@button.Text</span>
+            </a>
+        }
+    }
+
+    @if (!string.IsNullOrEmpty(deleteUrl))
+    {
+        <button type="button"
+                class="btn btn-outline-danger @btnSizeClass"
+                onclick="deleteEntity_@(entityId?.Replace("-", "_") ?? "item")('@deleteUrl', '@entityName')"
+                aria-label="Delete @entityName">
+            <span aria-hidden="true">Delete</span>
+        </button>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(deleteUrl))
+{
+    <script>
+        async function deleteEntity_@(entityId?.Replace("-", "_") ?? "item")(url, name) {
+            if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => null);
+                    throw new Error(errorData?.message || `Failed to delete: ${response.statusText}`);
+                }
+
+                @Html.Raw(onDeleteSuccess);
+            } catch (error) {
+                console.error('Delete error:', error);
+                alert('Failed to delete: ' + error.message);
+            }
+        }
+    </script>
+}

@@ -1,0 +1,583 @@
+/* ============================================================================
+   Table Styles
+   LogSystem WebApp - Enhanced table styling with improved UX
+   ============================================================================ */
+
+/* -------------------------------------------------------------------------
+   Base Table Styles
+   Enhanced Bootstrap table with better spacing and borders
+   ------------------------------------------------------------------------- */
+
+.table {
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: var(--spacing-6);
+}
+
+.table th,
+.table td {
+  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.table thead th {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-secondary);
+  border-bottom: 2px solid var(--color-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------------
+   Table Variants
+   ------------------------------------------------------------------------- */
+
+/* Small table - compact spacing */
+.table-sm th,
+.table-sm td {
+  padding: var(--table-cell-padding-y-sm) var(--table-cell-padding-x-sm);
+  font-size: var(--font-size-sm);
+}
+
+/* Borderless table */
+.table-borderless th,
+.table-borderless td {
+  border: none;
+}
+
+/* Bordered table - all cells */
+.table-bordered {
+  border: 1px solid var(--color-border);
+}
+
+.table-bordered th,
+.table-bordered td {
+  border: 1px solid var(--color-border-light);
+}
+
+/* -------------------------------------------------------------------------
+   Table Row States
+   ------------------------------------------------------------------------- */
+
+/* Hover effect on rows */
+.table-hover tbody tr {
+  transition: var(--transition-colors);
+}
+
+.table-hover tbody tr:hover {
+  background-color: var(--color-gray-100);
+  cursor: pointer;
+}
+
+/* Striped rows */
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.table-striped tbody tr:nth-of-type(odd):hover {
+  background-color: var(--color-gray-100);
+}
+
+/* Active row state */
+.table tbody tr.active {
+  background-color: var(--color-primary-light);
+}
+
+/* Row states - contextual backgrounds */
+.table tbody tr.table-success {
+  background-color: var(--color-success-light);
+}
+
+.table tbody tr.table-warning {
+  background-color: var(--color-warning-light);
+}
+
+.table tbody tr.table-danger {
+  background-color: var(--color-danger-light);
+}
+
+.table tbody tr.table-info {
+  background-color: var(--color-info-light);
+}
+
+/* -------------------------------------------------------------------------
+   Sticky Header
+   For long scrollable tables
+   ------------------------------------------------------------------------- */
+
+.table-sticky-header {
+  position: relative;
+  overflow-y: auto;
+  max-height: 600px;
+}
+
+.table-sticky-header thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* -------------------------------------------------------------------------
+   Column Sizing & Alignment
+   ------------------------------------------------------------------------- */
+
+/* ID columns - narrow fixed width */
+.table th.col-id,
+.table td.col-id {
+  width: 80px;
+  max-width: 80px;
+}
+
+/* Actions column - right-aligned, fixed width */
+.table th.col-actions,
+.table td.col-actions {
+  width: 150px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table th.col-actions-sm,
+.table td.col-actions-sm {
+  width: 100px;
+}
+
+.table th.col-actions-lg,
+.table td.col-actions-lg {
+  width: 200px;
+}
+
+/* Status column - narrow */
+.table th.col-status,
+.table td.col-status {
+  width: 100px;
+  text-align: center;
+}
+
+/* Numeric columns - right-aligned */
+.table th.col-numeric,
+.table td.col-numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Date/Time columns */
+.table th.col-datetime,
+.table td.col-datetime {
+  width: 180px;
+  white-space: nowrap;
+}
+
+/* Expand column - allows content to take remaining space */
+.table th.col-expand,
+.table td.col-expand {
+  width: auto;
+}
+
+/* Nowrap - prevents text wrapping */
+.table th.col-nowrap,
+.table td.col-nowrap {
+  white-space: nowrap;
+}
+
+/* Truncate - ellipsis for long text */
+.table td.col-truncate {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------------
+   Responsive Tables
+   Horizontal scroll on small screens
+   ------------------------------------------------------------------------- */
+
+.table-responsive {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive > .table {
+  margin-bottom: 0;
+}
+
+/* Custom scrollbar for table containers */
+.table-responsive::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+  background: var(--color-gray-100);
+  border-radius: var(--border-radius-base);
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+  background: var(--color-gray-400);
+  border-radius: var(--border-radius-base);
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gray-500);
+}
+
+/* -------------------------------------------------------------------------
+   Table with Card Wrapper
+   Table inside a card component
+   ------------------------------------------------------------------------- */
+
+.table-card {
+  background-color: var(--color-bg-body);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.table-card .table {
+  margin-bottom: 0;
+}
+
+.table-card .table thead th {
+  border-top: none;
+}
+
+.table-card .table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* -------------------------------------------------------------------------
+   Table Header with Actions
+   Header area above table for filters/search/actions
+   ------------------------------------------------------------------------- */
+
+.table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-4) var(--spacing-6);
+  background-color: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+}
+
+.table-header-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.table-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+/* -------------------------------------------------------------------------
+   Table Footer
+   For pagination or summary info
+   ------------------------------------------------------------------------- */
+
+.table-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-4) var(--spacing-6);
+  background-color: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border);
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+}
+
+.table-footer-info {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* -------------------------------------------------------------------------
+   Empty Table State
+   ------------------------------------------------------------------------- */
+
+.table-empty {
+  text-align: center;
+  padding: var(--spacing-12) var(--spacing-6);
+  color: var(--color-text-muted);
+}
+
+.table-empty-icon {
+  font-size: 3rem;
+  color: var(--color-gray-400);
+  margin-bottom: var(--spacing-4);
+}
+
+.table-empty-message {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-2);
+}
+
+.table-empty-description {
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
+}
+
+/* -------------------------------------------------------------------------
+   Loading State
+   Skeleton loader for table rows
+   ------------------------------------------------------------------------- */
+
+.table-loading {
+  position: relative;
+  min-height: 200px;
+}
+
+.table-loading::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+.table tbody tr.skeleton-row td {
+  height: 48px;
+  background: linear-gradient(
+    90deg,
+    var(--color-gray-200) 25%,
+    var(--color-gray-100) 50%,
+    var(--color-gray-200) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* -------------------------------------------------------------------------
+   Sortable Columns
+   Visual indicators for sortable table headers
+   ------------------------------------------------------------------------- */
+
+.table thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: var(--transition-colors);
+  position: relative;
+  padding-right: 2rem;
+}
+
+.table thead th.sortable:hover {
+  background-color: var(--color-gray-200);
+  color: var(--color-primary);
+}
+
+.table thead th.sortable::after {
+  content: "↕";
+  position: absolute;
+  right: 0.75rem;
+  opacity: 0.3;
+  font-size: 0.875rem;
+}
+
+.table thead th.sortable.sort-asc::after {
+  content: "↑";
+  opacity: 1;
+  color: var(--color-primary);
+}
+
+.table thead th.sortable.sort-desc::after {
+  content: "↓";
+  opacity: 1;
+  color: var(--color-primary);
+}
+
+/* -------------------------------------------------------------------------
+   Action Buttons in Tables
+   Consistent styling for row action buttons
+   ------------------------------------------------------------------------- */
+
+.table .btn-group-table {
+  display: inline-flex;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.table .btn-table {
+  padding: 0.25rem 0.5rem;
+  font-size: var(--font-size-sm);
+  line-height: 1.2;
+  border-radius: var(--border-radius-sm);
+}
+
+/* Icon-only buttons in tables */
+.table .btn-table-icon {
+  padding: 0.25rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* -------------------------------------------------------------------------
+   Metrics/Stats Table
+   Special styling for data-heavy metrics tables
+   ------------------------------------------------------------------------- */
+
+.table-metrics th,
+.table-metrics td {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-metrics thead th {
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.table-metrics tbody td {
+  font-weight: var(--font-weight-medium);
+}
+
+/* Metric value with status color */
+.table-metrics .metric-value {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.table-metrics .metric-value-success {
+  color: var(--color-success);
+}
+
+.table-metrics .metric-value-warning {
+  color: var(--color-warning);
+}
+
+.table-metrics .metric-value-danger {
+  color: var(--color-danger);
+}
+
+.table-metrics .metric-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* -------------------------------------------------------------------------
+   Inline Cells (Remove default inline bgcolor attributes)
+   Override inline styles for better consistency
+   ------------------------------------------------------------------------- */
+
+.table th[bgcolor],
+.table td[bgcolor] {
+  background-color: var(--color-bg-secondary) !important;
+}
+
+/* Cell highlight variants (replace inline bgcolor) */
+.table .cell-highlight-primary {
+  background-color: var(--color-primary-light) !important;
+}
+
+.table .cell-highlight-success {
+  background-color: var(--color-success-light) !important;
+}
+
+.table .cell-highlight-warning {
+  background-color: var(--color-warning-light) !important;
+}
+
+.table .cell-highlight-danger {
+  background-color: var(--color-danger-light) !important;
+}
+
+/* -------------------------------------------------------------------------
+   Real-time Metrics Animation
+   Subtle pulse animation for metric updates
+   ------------------------------------------------------------------------- */
+
+@keyframes metric-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.metric-updated {
+  animation: metric-pulse 0.3s ease-in-out;
+}
+
+/* -------------------------------------------------------------------------
+   Compact Metrics Display
+   For dashboard-style metric cards
+   ------------------------------------------------------------------------- */
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-6);
+}
+
+.metric-card {
+  background-color: var(--color-bg-body);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-4);
+  text-align: center;
+  transition: var(--transition-all);
+}
+
+.metric-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.metric-card-value {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  margin-bottom: var(--spacing-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-card-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metric-card-change {
+  font-size: var(--font-size-xs);
+  margin-top: var(--spacing-2);
+}
+
+.metric-card-change-positive {
+  color: var(--color-success);
+}
+
+.metric-card-change-negative {
+  color: var(--color-danger);
+}

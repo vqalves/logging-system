@@ -1,0 +1,107 @@
+@*
+    Reusable Form Group Component
+
+    Usage:
+    @{
+        ViewData["FieldId"] = "fieldName";
+        ViewData["FieldLabel"] = "Field Name";
+        ViewData["FieldType"] = "text"; // text, number, email, password, textarea, select
+        ViewData["FieldValue"] = ""; // optional
+        ViewData["FieldPlaceholder"] = ""; // optional
+        ViewData["FieldRequired"] = true; // optional
+        ViewData["FieldDisabled"] = false; // optional
+        ViewData["FieldHelpText"] = "Help text"; // optional
+        ViewData["FieldError"] = ""; // optional error message
+        ViewData["FieldClass"] = ""; // optional additional classes
+        ViewData["SelectOptions"] = new[] { "Option 1", "Option 2" }; // for select type
+        ViewData["FieldRows"] = 4; // for textarea type
+    }
+    @await Html.PartialAsync("_Components/_FormGroup")
+*@
+
+@{
+    var fieldId = ViewData["FieldId"]?.ToString() ?? "field";
+    var fieldLabel = ViewData["FieldLabel"]?.ToString() ?? "";
+    var fieldType = ViewData["FieldType"]?.ToString() ?? "text";
+    var fieldValue = ViewData["FieldValue"]?.ToString() ?? "";
+    var fieldPlaceholder = ViewData["FieldPlaceholder"]?.ToString() ?? "";
+    var fieldRequired = ViewData["FieldRequired"] as bool? ?? false;
+    var fieldDisabled = ViewData["FieldDisabled"] as bool? ?? false;
+    var fieldHelpText = ViewData["FieldHelpText"]?.ToString() ?? "";
+    var fieldError = ViewData["FieldError"]?.ToString() ?? "";
+    var fieldClass = ViewData["FieldClass"]?.ToString() ?? "";
+    var selectOptions = ViewData["SelectOptions"] as string[] ?? new string[0];
+    var fieldRows = ViewData["FieldRows"] as int? ?? 4;
+
+    var hasError = !string.IsNullOrEmpty(fieldError);
+    var formControlClass = $"form-control {fieldClass} {(hasError ? "is-invalid" : "")}";
+}
+
+<div class="form-group mb-3">
+    <label for="@fieldId" class="form-label">
+        @fieldLabel
+        @if (fieldRequired)
+        {
+            <span class="text-danger" aria-label="required">*</span>
+        }
+    </label>
+
+    @if (fieldType == "textarea")
+    {
+        <textarea
+            id="@fieldId"
+            name="@fieldId"
+            class="@formControlClass"
+            rows="@fieldRows"
+            placeholder="@fieldPlaceholder"
+            aria-describedby="@(fieldId)-help @(hasError ? fieldId + "-error" : "")"
+            @(fieldRequired ? "required" : "")
+            @(fieldDisabled ? "disabled" : "")>@fieldValue</textarea>
+    }
+    else if (fieldType == "select")
+    {
+        <select
+            id="@fieldId"
+            name="@fieldId"
+            class="@formControlClass"
+            aria-describedby="@(fieldId)-help @(hasError ? fieldId + "-error" : "")"
+            @(fieldRequired ? "required" : "")
+            @(fieldDisabled ? "disabled" : "")>
+            <option value="">-- Select --</option>
+            @foreach (var option in selectOptions)
+            {
+                @if (option == fieldValue)
+                {
+                    <option value="@option" selected>@option</option>
+                }
+                else
+                {
+                    <option value="@option">@option</option>
+                }
+            }
+        </select>
+    }
+    else
+    {
+        <input
+            type="@fieldType"
+            id="@fieldId"
+            name="@fieldId"
+            class="@formControlClass"
+            value="@fieldValue"
+            placeholder="@fieldPlaceholder"
+            aria-describedby="@(fieldId)-help @(hasError ? fieldId + "-error" : "")"
+            @(fieldRequired ? "required" : "")
+            @(fieldDisabled ? "disabled" : "") />
+    }
+
+    @if (!string.IsNullOrEmpty(fieldHelpText))
+    {
+        <small id="@(fieldId)-help" class="form-text text-muted d-block mt-1">@fieldHelpText</small>
+    }
+
+    @if (hasError)
+    {
+        <div id="@(fieldId)-error" class="invalid-feedback d-block">@fieldError</div>
+    }
+</div>

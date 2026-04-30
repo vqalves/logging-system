@@ -1,0 +1,69 @@
+@*
+    Reusable Page Header Component
+
+    Usage:
+    @{
+        ViewData["PageTitle"] = "Page Title";
+        ViewData["PageSubtitle"] = "Optional subtitle"; // optional
+        ViewData["ShowBreadcrumb"] = true; // optional
+        ViewData["BreadcrumbItems"] = new[] {
+            new { Text = "Home", Url = "/" },
+            new { Text = "Current Page", Url = (string)null }
+        }; // optional
+        ViewData["HeaderActions"] = true; // optional, indicates if actions will be rendered
+    }
+    @await Html.PartialAsync("_Components/_PageHeader")
+*@
+
+@{
+    var pageTitle = ViewData["PageTitle"]?.ToString() ?? "Page";
+    var pageSubtitle = ViewData["PageSubtitle"]?.ToString();
+    var showBreadcrumb = ViewData["ShowBreadcrumb"] as bool? ?? false;
+    var breadcrumbItems = ViewData["BreadcrumbItems"] as dynamic[];
+    var hasActions = ViewData["HeaderActions"] as bool? ?? false;
+}
+
+@if (showBreadcrumb && breadcrumbItems != null && breadcrumbItems.Length > 0)
+{
+    <nav class="breadcrumb-nav" aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            @foreach (var item in breadcrumbItems)
+            {
+                if (item.Url != null)
+                {
+                    <li class="breadcrumb-item"><a href="@item.Url">@item.Text</a></li>
+                }
+                else
+                {
+                    <li class="breadcrumb-item active" aria-current="page">@item.Text</li>
+                }
+            }
+        </ol>
+    </nav>
+}
+
+@if (hasActions)
+{
+    <div class="page-header-with-actions mb-4">
+        <div class="page-header-content">
+            <h1 class="page-title">@pageTitle</h1>
+            @if (!string.IsNullOrEmpty(pageSubtitle))
+            {
+                <p class="page-subtitle">@pageSubtitle</p>
+            }
+        </div>
+        <div class="page-header-actions">
+            @RenderSection("PageHeaderActions", required: false)
+        </div>
+    </div>
+}
+else
+{
+    <div class="page-title-wrapper mb-4">
+        <h1 class="page-title">@pageTitle</h1>
+        @if (!string.IsNullOrEmpty(pageSubtitle))
+        {
+            <p class="page-subtitle">@pageSubtitle</p>
+        }
+    </div>
+}

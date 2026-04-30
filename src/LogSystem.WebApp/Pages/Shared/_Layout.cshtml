@@ -3,30 +3,53 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - LogSystem.WebApp</title>
+    <title>@ViewData["Title"] - LogSystem</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/LogSystem.WebApp.styles.css" asp-append-version="true" />
 </head>
 <body>
     <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3" role="navigation" aria-label="Main navigation">
             <div class="container">
-                <a class="navbar-brand" asp-area="" asp-page="/Index">LogSystem.WebApp</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
+                <!-- Enhanced Brand Area -->
+                <a class="navbar-brand font-weight-semibold" asp-area="" asp-page="/Index" aria-label="LogSystem Home">
+                    <span class="navbar-brand-text">LogSystem</span>
+                </a>
+
+                <!-- Mobile Toggle Button with Enhanced Accessibility -->
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
+                        aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation menu">
                     <span class="navbar-toggler-icon"></span>
                 </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+
+                <!-- Navigation Content -->
+                <div class="navbar-collapse collapse" id="navbarSupportedContent">
+                    <!-- Main Navigation Links -->
                     <ul class="navbar-nav flex-grow-1">
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Index">Home</a>
+                            <a class="nav-link" asp-area="" asp-page="/Index" id="nav-home" aria-label="Home page">Home</a>
                         </li>
+
+                        <!-- Collections Group -->
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/LogCollections">Log Collections</a>
+                            <a class="nav-link" asp-area="" asp-page="/LogCollections" id="nav-collections" aria-label="Log Collections">Log Collections</a>
                         </li>
+
+                        <!-- Separator -->
+                        <li class="nav-item navbar-divider" role="separator"></li>
+
+                        <!-- Search Group -->
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Privacy</a>
+                            <a class="nav-link" asp-area="" asp-page="/SearchLogs" id="nav-search" aria-label="Search Logs">Search Logs</a>
+                        </li>
+                    </ul>
+
+                    <!-- Utility Navigation Area (placeholder for future features) -->
+                    <ul class="navbar-nav navbar-utility ms-auto" aria-label="Utility navigation">
+                        <!-- Future: Search, Notifications, User Menu -->
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-page="/Privacy" id="nav-privacy" aria-label="Privacy policy">Privacy</a>
                         </li>
                     </ul>
                 </div>
