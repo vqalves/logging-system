@@ -104,7 +104,9 @@ public class DefaultMessageReceiverBackgroundService(
                             receivedMessage.Log = extractionService.Extract(
                                 logCollection: logCollection,
                                 attributes: attributesList,
-                                contentAsJsonDocument: receivedMessage.GetPayloadAsJsonDocument);
+                                contentAsJsonDocument: receivedMessage.GetPayloadAsJsonDocument,
+                                contentAsString: receivedMessage.GetPayloadAsString);
+                                
                             extratingLogTime = timingStopwatch.Elapsed;
 
                             // Writing to channel

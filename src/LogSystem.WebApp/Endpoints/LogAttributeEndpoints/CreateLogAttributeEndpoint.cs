@@ -109,15 +109,24 @@ public static class CreateLogAttributeEndpoint
         {
             errors.Add("ExtractionStyleID", new[] { "ExtractionStyleID is required." });
         }
-        else if (!request.ExtractionStyleID.Equals("json", StringComparison.InvariantCultureIgnoreCase))
+        else if (!request.ExtractionStyleID.Equals("json", StringComparison.InvariantCultureIgnoreCase) &&
+                 !request.ExtractionStyleID.Equals("regex", StringComparison.InvariantCultureIgnoreCase))
         {
-            errors.Add("ExtractionStyleID", new[] { "Invalid ExtractionStyleID. Currently only 'json' is supported." });
+            errors.Add("ExtractionStyleID", new[] { "Invalid ExtractionStyleID. Valid values are: 'json', 'regex'." });
         }
 
         // Validate ExtractionExpression
         if (string.IsNullOrWhiteSpace(request.ExtractionExpression))
         {
             errors.Add("ExtractionExpression", new[] { "ExtractionExpression is required." });
+        }
+        else if (request.ExtractionStyleID?.Equals("regex", StringComparison.InvariantCultureIgnoreCase) == true)
+        {
+            // Validate regex pattern by attempting to compile it
+            if (!ExtractionStyle.REGEX.IsValidExpression(request.ExtractionExpression))
+            {
+                errors.Add("ExtractionExpression", new[] { "Invalid regex pattern. Please check your regular expression syntax." });
+            }
         }
 
         return Task.FromResult(errors);

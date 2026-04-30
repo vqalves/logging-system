@@ -117,6 +117,14 @@ public static class UpdateLogAttributeEndpoint
         {
             errors.Add("ExtractionExpression", new[] { "ExtractionExpression is required." });
         }
+        else if (request.ExtractionStyleID?.Equals("regex", StringComparison.InvariantCultureIgnoreCase) == true)
+        {
+            // Validate regex pattern by attempting to compile it
+            if (!ExtractionStyle.REGEX.IsValidExpression(request.ExtractionExpression))
+            {
+                errors.Add("ExtractionExpression", new[] { "Invalid regex pattern. Please check your regular expression syntax." });
+            }
+        }
 
         return Task.FromResult(errors);
     }

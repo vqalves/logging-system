@@ -5,7 +5,7 @@ namespace LogSystem.Core.Services.Database;
 
 public class LogExtractionService
 {
-    public Log Extract(LogCollection logCollection, IEnumerable<LogAttribute> attributes, Func<JsonDocument?> contentAsJsonDocument)
+    public Log Extract(LogCollection logCollection, IEnumerable<LogAttribute> attributes, Func<JsonDocument?> contentAsJsonDocument, Func<string> contentAsString)
     {
         // Create new Log instance with source information and calculated expiration
         var log = new Log
@@ -21,6 +21,13 @@ public class LogExtractionService
         if (needsJsonParsing)
             jsonDocument = contentAsJsonDocument();
 
+        // Get string content once if regex format is needed
+        string? stringContent = null;
+        bool needsStringContent = attributes.Any(a => a.HasExtractionStyle(ExtractionStyle.REGEX));
+
+        if (needsStringContent)
+            stringContent = contentAsString();
+
         // Iterate through attributes and extract values
         foreach (var attribute in attributes)
         {
@@ -33,7 +40,11 @@ public class LogExtractionService
                     if (jsonDocument is not null)
                         extractedValue = ExtractionStyle.JSON.Extract(jsonDocument, attribute.ExtractionExpression);
 
-                // Future extraction styles (regex, xpath, etc.) can be added here
+                if (attribute.HasExtractionStyle(ExtractionStyle.REGEX))
+                    if (stringContent is not null)
+                        extractedValue = ExtractionStyle.REGEX.Extract(stringContent, attribute.ExtractionExpression);
+
+                // Future extraction styles (xpath, etc.) can be added here
 
                 // Handle type conversion based on AttributeType
                 if (extractedValue != null)

@@ -44,6 +44,7 @@
         <label for="extractionStyleID" class="form-label">Extraction Style</label>
         <select class="form-select" id="extractionStyleID" name="extractionStyleID">
             <option value="json">JSON</option>
+            <option value="regex">Regex</option>
         </select>
         <div class="invalid-feedback" id="extractionStyleID-error"></div>
         <div class="form-text">Method used to extract data from log entries.</div>
@@ -51,9 +52,9 @@
 
     <div class="mb-3">
         <label for="extractionExpression" class="form-label">Extraction Expression</label>
-        <input type="text" class="form-control" id="extractionExpression" name="extractionExpression" placeholder="e.g., $.userId, $.request.path, $.error.message" />
+        <input type="text" class="form-control" id="extractionExpression" name="extractionExpression" placeholder="" />
         <div class="invalid-feedback" id="extractionExpression-error"></div>
-        <div class="form-text">JSON path expression to extract the value from log data.</div>
+        <div class="form-text" id="extractionExpression-help"></div>
     </div>
 
     <div class="mb-3">
@@ -79,6 +80,9 @@
 
             loadLogCollection();
             populateAttributeTypes();
+            updateExtractionExpressionHelp();
+
+            document.getElementById('extractionStyleID').addEventListener('change', updateExtractionExpressionHelp);
 
             document.getElementById('cancel-button').onclick = () => {
                 window.location.href = `/LogAttributes/${logCollectionId}`;
@@ -224,6 +228,20 @@
             errorDiv.textContent = message;
             errorDiv.style.display = 'block';
             window.scrollTo(0, 0);
+        }
+
+        function updateExtractionExpressionHelp() {
+            const extractionStyleID = document.getElementById('extractionStyleID').value;
+            const expressionInput = document.getElementById('extractionExpression');
+            const helpText = document.getElementById('extractionExpression-help');
+
+            if (extractionStyleID === 'json') {
+                expressionInput.placeholder = 'e.g., $.userId, $.request.path, $.error.message';
+                helpText.textContent = 'JSON path expression to extract the value from log data.';
+            } else if (extractionStyleID === 'regex') {
+                expressionInput.placeholder = 'e.g., (?<=User: )\\w+, Status: (\\d+), (?<=Error: ).*';
+                helpText.innerHTML = 'Regular expression pattern to extract the value from log text. Supports lookahead/lookbehind assertions. Examples: <code>(?&lt;=User: )\\w+</code> (extract username after "User: "), <code>Status: (\\d+)</code> (extract status code), <code>Duration: (\\d+\\.\\d+)ms</code> (extract duration).';
+            }
         }
     </script>
 }
