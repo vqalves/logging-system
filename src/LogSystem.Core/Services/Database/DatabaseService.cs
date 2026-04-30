@@ -188,14 +188,17 @@ public class DatabaseService
             yield return attribute;
     }
 
-    public async IAsyncEnumerable<Log> QueryLogsAsync(LogCollection logCollection, IEnumerable<LogAttribute> attributes, IEnumerable<LogFilter> filters, long? lastId = null, int limit = 100)
+    public async IAsyncEnumerable<Log> QueryLogsAsync(LogCollection logCollection, IEnumerable<LogAttribute> attributes, IEnumerable<LogFilter> filters, long? lastId = null, int limit = 100, string? sortBy = null, string? sortDirection = null, object? lastSortValue = null)
     {
         var enumerator = LogDataService.QueryLogsAsync(
-            logCollection: logCollection, 
-            attributes: attributes, 
-            filters: filters, 
-            lastId: lastId, 
-            limit: limit);
+            logCollection: logCollection,
+            attributes: attributes,
+            filters: filters,
+            lastId: lastId,
+            limit: limit,
+            sortBy: sortBy,
+            sortDirection: sortDirection,
+            lastSortValue: lastSortValue);
 
         await foreach (var log in enumerator)
             yield return log;

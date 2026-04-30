@@ -68,11 +68,31 @@ public static class SearchLogsEndpoint
                     }
                 }
 
+                // Validate sort parameters
+                var sortByValidation = ValidateSortBy(request.SortBy, allAttributes);
+                if (!sortByValidation.IsValid)
+                    return Results.ValidationProblem(sortByValidation.Errors!);
+
+                string? sortBy = sortByValidation.ValidatedSortBy;
+
+                var sortDirectionValidation = ValidateSortDirection(request.SortDirection);
+                if (!sortDirectionValidation.IsValid)
+                    return Results.ValidationProblem(sortDirectionValidation.Errors!);
+
+                string? sortDirection = sortDirectionValidation.ValidatedSortDirection;
+
+                // Validate and convert lastSortValue if provided
+                var lastSortValueValidation = ValidateLastSortValue(request.LastSortValue, sortBy, allAttributes);
+                if (!lastSortValueValidation.IsValid)
+                    return Results.ValidationProblem(lastSortValueValidation.Errors!);
+
+                object? lastSortValue = lastSortValueValidation.ConvertedValue;
+
                 // Query logs with pagination
                 var logs = new List<ResponseLog>();
                 var limit = request.Limit ?? 100;
 
-                await foreach (var log in databaseService.QueryLogsAsync(logCollection, allAttributes, filters, request.LastId, limit))
+                await foreach (var log in databaseService.QueryLogsAsync(logCollection, allAttributes, filters, request.LastId, limit, sortBy, sortDirection, lastSortValue))
                 {
                     var responseLog = new ResponseLog(
                         log.ID,
@@ -146,10 +166,133 @@ public static class SearchLogsEndpoint
         return errors;
     }
 
+    private static (bool IsValid, string? ValidatedSortBy, Dictionary<string, string[]>? Errors) ValidateSortBy(string? sortBy, List<LogAttribute> allAttributes)
+    {
+        if (string.IsNullOrEmpty(sortBy))
+        {
+            return (true, null, null);
+        }
+
+        // Check if sortBy is either "ID" or a valid attribute SqlColumnName
+        if (sortBy.Equals("ID", StringComparison.OrdinalIgnoreCase))
+        {
+            return (true, sortBy, null);
+        }
+
+        var validAttribute = allAttributes.FirstOrDefault(a =>
+            a.SqlColumnName.Equals(sortBy, StringComparison.OrdinalIgnoreCase));
+
+        if (validAttribute == null)
+        {
+            var errors = new Dictionary<string, string[]>
+            {
+                { "sortBy", new[] { $"Invalid column name '{sortBy}'. Must be 'ID' or a valid attribute column name." } }
+            };
+            return (false, null, errors);
+        }
+
+        // Use the exact SqlColumnName from the attribute
+        return (true, validAttribute.SqlColumnName, null);
+    }
+
+    private static (bool IsValid, string? ValidatedSortDirection, Dictionary<string, string[]>? Errors) ValidateSortDirection(string? sortDirection)
+    {
+        if (string.IsNullOrEmpty(sortDirection))
+        {
+            return (true, null, null);
+        }
+
+        if (!sortDirection.Equals("ASC", StringComparison.OrdinalIgnoreCase) &&
+            !sortDirection.Equals("DESC", StringComparison.OrdinalIgnoreCase))
+        {
+            var errors = new Dictionary<string, string[]>
+            {
+                { "sortDirection", new[] { "Sort direction must be either 'ASC' or 'DESC'." } }
+            };
+            return (false, null, errors);
+        }
+
+        return (true, sortDirection, null);
+    }
+
+    private static (bool IsValid, object? ConvertedValue, Dictionary<string, string[]>? Errors) ValidateLastSortValue(
+        object? lastSortValue,
+        string? sortBy,
+        List<LogAttribute> allAttributes)
+    {
+        // If no lastSortValue provided, return valid with null
+        if (lastSortValue == null)
+        {
+            return (true, null, null);
+        }
+
+        // If no sortBy or sorting by ID, lastSortValue is not used
+        if (string.IsNullOrEmpty(sortBy) || sortBy.Equals("ID", StringComparison.OrdinalIgnoreCase))
+        {
+            return (true, null, null);
+        }
+
+        // Find the attribute corresponding to sortBy
+        var sortAttribute = allAttributes.FirstOrDefault(a =>
+            a.SqlColumnName.Equals(sortBy, StringComparison.OrdinalIgnoreCase));
+
+        if (sortAttribute == null)
+        {
+            // This shouldn't happen if sortBy was validated first, but handle it gracefully
+            return (true, null, null);
+        }
+
+        // Convert lastSortValue to the appropriate type based on attribute type
+        try
+        {
+            var attributeType = sortAttribute.GetAttributeType();
+            object? convertedValue = null;
+
+            if (attributeType == AttributeType.Integer)
+            {
+                convertedValue = Convert.ToInt32(lastSortValue);
+            }
+            else if (attributeType == AttributeType.Decimal)
+            {
+                convertedValue = Convert.ToDecimal(lastSortValue);
+            }
+            else if (attributeType == AttributeType.DateTime)
+            {
+                convertedValue = DateTime.ParseExact(
+                    lastSortValue.ToString()!,
+                    "yyyy-MM-ddTHH:mm:ss",
+                    null,
+                    System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal
+                );
+            }
+            else if (attributeType == AttributeType.Boolean)
+            {
+                convertedValue = Convert.ToBoolean(lastSortValue);
+            }
+            else
+            {
+                convertedValue = lastSortValue.ToString();
+            }
+
+            return (true, convertedValue, null);
+        }
+        catch (Exception)
+        {
+            var errors = new Dictionary<string, string[]>
+            {
+                { "lastSortValue", new[] { $"Invalid lastSortValue type for column '{sortBy}'." } }
+            };
+            return (false, null, errors);
+        }
+    }
+
     internal record Request(
         long? LastId,
         int? Limit,
-        List<FilterRequest>? Filters
+        List<FilterRequest>? Filters,
+        string? SortBy,
+        string? SortDirection,
+        object? LastSortValue
     );
 
     internal record FilterRequest(

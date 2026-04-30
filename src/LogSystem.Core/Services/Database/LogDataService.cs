@@ -181,7 +181,7 @@ public class LogDataService
         ).FirstOrDefaultAsync();
     }
 
-    public async IAsyncEnumerable<Log> QueryLogsAsync(LogCollection logCollection, IEnumerable<LogAttribute> attributes, IEnumerable<LogFilter> filters, long? id = null, long? lastId = null, int? limit = null)
+    public async IAsyncEnumerable<Log> QueryLogsAsync(LogCollection logCollection, IEnumerable<LogAttribute> attributes, IEnumerable<LogFilter> filters, long? id = null, long? lastId = null, int? limit = null, string? sortBy = null, string? sortDirection = null, object? lastSortValue = null)
     {
         // Materialize collections to avoid multiple enumeration
         var attributesList = attributes as IList<LogAttribute> ?? attributes.ToList();
@@ -213,10 +213,41 @@ public class LogDataService
         var parameters = new List<SqlParameter>();
         var paramIndex = 0;
 
-        // Add pagination filter (ID < lastId for descending order)
-        if (lastId.HasValue)
+        // Determine sort direction
+        var direction = string.IsNullOrEmpty(sortDirection) || sortDirection.Equals("DESC", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
+        var isDescending = direction == "DESC";
+        var sortedById = !string.IsNullOrEmpty(sortBy) && sortBy.Equals("ID", StringComparison.OrdinalIgnoreCase);
+
+        // Add keyset pagination filter
+        if (lastId.HasValue && !string.IsNullOrEmpty(sortBy))
         {
-            whereClauses.Add($"[ID] < @LastId");
+            var sortColumn = sortedById ? "[ID]" : $"[{sortBy}]";
+
+            if (sortedById)
+            {
+                // Simple ID-only pagination
+                whereClauses.Add(isDescending ? "[ID] < @LastId" : "[ID] > @LastId");
+                parameters.Add(new SqlParameter("@LastId", lastId.Value));
+            }
+            else if (lastSortValue != null)
+            {
+                // Composite keyset pagination: (SortColumn op @LastSortValue) OR (SortColumn = @LastSortValue AND ID < @LastId)
+                var comparisonOp = isDescending ? "<" : ">";
+                whereClauses.Add($"(({sortColumn} {comparisonOp} @LastSortValue) OR ({sortColumn} = @LastSortValue AND [ID] < @LastId))");
+                parameters.Add(new SqlParameter("@LastSortValue", lastSortValue ?? DBNull.Value));
+                parameters.Add(new SqlParameter("@LastId", lastId.Value));
+            }
+            else
+            {
+                // Fallback to ID-only if lastSortValue not provided
+                whereClauses.Add("[ID] < @LastId");
+                parameters.Add(new SqlParameter("@LastId", lastId.Value));
+            }
+        }
+        else if (lastId.HasValue)
+        {
+            // Legacy: only lastId provided, no sortBy
+            whereClauses.Add("[ID] < @LastId");
             parameters.Add(new SqlParameter("@LastId", lastId.Value));
         }
 
@@ -287,7 +318,17 @@ public class LogDataService
         if (whereClauses.Count > 0)
             sql += $" WHERE {string.Join(" AND ", whereClauses)}";
 
-        sql += " ORDER BY [ID] DESC";
+        // Build ORDER BY clause (direction already calculated above)
+        if (!string.IsNullOrEmpty(sortBy) && !sortedById)
+        {
+            // Order by specified column, then by ID
+            sql += $" ORDER BY [{sortBy}] {direction}, [ID] DESC";
+        }
+        else
+        {
+            // Default or explicit ID ordering
+            sql += $" ORDER BY [ID] {direction}";
+        }
 
         Logger.LogDebug("Fetching logs: {sqlQuery}", sql);
 
